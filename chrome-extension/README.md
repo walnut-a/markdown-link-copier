@@ -6,6 +6,13 @@
 
 已通过审核，推荐直接从 Chrome Web Store 安装：
 
+<a href="https://chromewebstore.google.com/detail/markdown-link-copier/okdollbnpaenkphpigcahcaiddfainpn">
+  <img
+    src="https://img.shields.io/badge/Install%20from%20Chrome%20Web%20Store-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white"
+    alt="Install from Chrome Web Store"
+  >
+</a>
+
 [Markdown Link Copier - Chrome Web Store](https://chromewebstore.google.com/detail/markdown-link-copier/okdollbnpaenkphpigcahcaiddfainpn)
 
 ## 功能
