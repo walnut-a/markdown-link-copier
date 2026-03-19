@@ -1,0 +1,10 @@
+.DS_Store
+*.zip
+
+/.vscode/
+/.kiro/
+
+/assets/
+/css/
+/js/
+/index.html

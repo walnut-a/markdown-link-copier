@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <title>Markdown Link Copier</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <h1>复制 Markdown 链接</h1>
+      <p id="status">正在准备...</p>
+      <details class="settings" id="settings-panel">
+        <summary>标题清理设置</summary>
+        <div class="settings-body">
+          <label class="checkbox">
+            <input type="checkbox" id="strip-title-suffix">
+            去掉标题后缀（站点 slogan）
+          </label>
+          <label class="field">
+            分隔符（每行一个）
+            <textarea id="title-separators" rows="4"></textarea>
+            <span class="help">规则：命中关键词时，会从关键词前最近的分隔符截断。</span>
+            <span class="help">示例：文章标题 - 专栏 | 站点名 -> 文章标题 - 专栏</span>
+          </label>
+          <label class="field">
+            屏蔽关键词（每行一个，可选）
+            <textarea id="title-suffix-keywords" rows="3"></textarea>
+            <span class="help">规则：关键词在标题中出现即生效；若在结尾则直接去除。</span>
+            <span class="help">示例：文章标题 | 站点名 -> 文章标题</span>
+          </label>
+          <p id="settings-status" class="hint"></p>
+        </div>
+      </details>
+    </main>
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>
