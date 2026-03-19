@@ -2,6 +2,12 @@
 
 点击插件图标后，即可自动复制当前标签页的标题与清理后的链接，复制格式为 Markdown，如 `[标题](https://example.com)`。
 
+## 商店安装
+
+已通过审核，推荐直接从 Chrome Web Store 安装：
+
+[Markdown Link Copier - Chrome Web Store](https://chromewebstore.google.com/detail/markdown-link-copier/okdollbnpaenkphpigcahcaiddfainpn)
+
 ## 功能
 
 - 自动去除链接中的常见追踪参数（例如 `utm_*`、`gclid`、`fbclid` 等）。
@@ -13,12 +19,13 @@
 
 ## 使用方式
 
-1. 打开 Chrome，访问 `chrome://extensions/`。
-2. 右上角开启“开发者模式”。
-3. 点击“加载已解压的扩展程序”，选择本项目中的 `chrome-extension` 目录。
-4. 将扩展图标固定到工具栏后，点击图标即可自动复制 Markdown 链接。
-5. 无需点击按钮，打开弹窗会自动复制（若剪贴板受限可再次点击图标重试）。
-6. 如需去掉标题后缀，可在弹窗中配置分隔符或关键词。
+1. 推荐直接点击上面的商店链接安装。
+2. 如果需要本地加载，打开 Chrome，访问 `chrome://extensions/`。
+3. 右上角开启“开发者模式”。
+4. 点击“加载已解压的扩展程序”，选择本项目中的 `chrome-extension` 目录。
+5. 将扩展图标固定到工具栏后，点击图标即可自动复制 Markdown 链接。
+6. 无需点击按钮，打开弹窗会自动复制（若剪贴板受限可再次点击图标重试）。
+7. 如需去掉标题后缀，可在弹窗中配置分隔符或关键词。
 
 ## 备注
 

@@ -2,15 +2,22 @@
 
 一个 Chrome 扩展：点击图标后，会把当前标签页的标题和清理后的链接复制成 Markdown 格式。
 
+## Chrome Web Store
+
+已上架并通过审核，可直接安装：
+
+[Markdown Link Copier - Chrome Web Store](https://chromewebstore.google.com/detail/markdown-link-copier/okdollbnpaenkphpigcahcaiddfainpn)
+
 ## 安装
 
-这个仓库不需要构建，直接加载扩展目录就行。
+优先建议直接从 Chrome Web Store 安装；如果你想本地加载或调试，也可以直接加载扩展目录。
 
-1. 打开 Chrome，进入 `chrome://extensions/`
-2. 右上角打开“开发者模式”
-3. 点击“加载已解压的扩展程序”
-4. 选择仓库里的 `chrome-extension/` 目录
-5. 可选：把扩展图标固定到工具栏，方便随时使用
+1. 打开商店链接并点击“添加至 Chrome”
+2. 或者打开 Chrome，进入 `chrome://extensions/`
+3. 右上角打开“开发者模式”
+4. 点击“加载已解压的扩展程序”
+5. 选择仓库里的 `chrome-extension/` 目录
+6. 可选：把扩展图标固定到工具栏，方便随时使用
 
 ## 功能
 
