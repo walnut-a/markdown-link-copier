@@ -1,4 +1,4 @@
-const TRACKING_PARAMS = new Set([
+const DEFAULT_TRACKING_PARAMS = [
   'utm_source',
   'utm_medium',
   'utm_campaign',
@@ -58,9 +58,9 @@ const TRACKING_PARAMS = new Set([
   'ad_id',
   'adgroupid',
   'adset_id'
-]);
+];
 
-const TRACKING_PREFIXES = [
+const DEFAULT_TRACKING_PREFIXES = [
   'utm_',
   'ga_',
   'pk_',
@@ -78,10 +78,23 @@ const TRACKING_PREFIXES = [
   'hs_'
 ];
 
+const DEFAULT_CONDITIONAL_TRACKING_PARAM_GROUPS = [
+  {
+    markers: ['publication_id', 'isfreemail', 'triedredirect'],
+    remove: ['publication_id', 'post_id', 'isfreemail', 'r', 'triedredirect']
+  }
+];
+
+const DEFAULT_OUTPUT_TEMPLATE = '[{{markdownTitle}}]({{markdownUrl}})';
+
 const DEFAULT_SETTINGS = {
   stripTitleSuffix: true,
   titleSeparators: [' - ', ' – ', ' — ', ' | ', ' ｜ ', ' · ', ' • ', ' _ ', ' / '],
-  titleSuffixKeywords: []
+  titleSuffixKeywords: [],
+  trackingParams: DEFAULT_TRACKING_PARAMS,
+  trackingPrefixes: DEFAULT_TRACKING_PREFIXES,
+  conditionalTrackingParamGroups: DEFAULT_CONDITIONAL_TRACKING_PARAM_GROUPS,
+  outputTemplate: DEFAULT_OUTPUT_TEMPLATE
 };
 
 const statusEl = document.getElementById('status');
@@ -89,6 +102,11 @@ const settingsStatusEl = document.getElementById('settings-status');
 const stripTitleToggle = document.getElementById('strip-title-suffix');
 const separatorsEl = document.getElementById('title-separators');
 const keywordsEl = document.getElementById('title-suffix-keywords');
+const trackingParamsEl = document.getElementById('tracking-params');
+const trackingPrefixesEl = document.getElementById('tracking-prefixes');
+const conditionalGroupsEl = document.getElementById('conditional-tracking-groups');
+const outputTemplateEl = document.getElementById('output-template');
+const openSettingsButton = document.getElementById('open-settings');
 
 const setStatus = (message) => {
   if (statusEl) {
@@ -122,25 +140,73 @@ const normalizeList = (value, fallback) => {
   return [...fallback];
 };
 
-let currentSettings = { ...DEFAULT_SETTINGS };
+const normalizeParamList = (value, fallback) =>
+  normalizeList(value, fallback).map((item) => item.toLowerCase());
+
+const normalizeConditionalTrackingParamGroups = (value, fallback) => {
+  const sourceGroups = Array.isArray(value) ? value : fallback;
+
+  return sourceGroups
+    .map((group) => ({
+      markers: normalizeParamList(group?.markers ?? group?.markerParams, []),
+      remove: normalizeParamList(group?.remove ?? group?.removableParams, [])
+    }))
+    .filter((group) => group.markers.length > 0 && group.remove.length > 0);
+};
+
+const normalizeOutputTemplate = (value, fallback) => {
+  if (typeof value === 'string' && value.length > 0) {
+    return value;
+  }
+
+  return fallback;
+};
+
+const normalizeSettings = (settings = {}) => ({
+  stripTitleSuffix: Boolean(settings.stripTitleSuffix),
+  titleSeparators: normalizeList(settings.titleSeparators, DEFAULT_SETTINGS.titleSeparators),
+  titleSuffixKeywords: normalizeList(
+    settings.titleSuffixKeywords,
+    DEFAULT_SETTINGS.titleSuffixKeywords
+  ),
+  trackingParams: normalizeParamList(settings.trackingParams, DEFAULT_SETTINGS.trackingParams),
+  trackingPrefixes: normalizeParamList(settings.trackingPrefixes, DEFAULT_SETTINGS.trackingPrefixes),
+  conditionalTrackingParamGroups: normalizeConditionalTrackingParamGroups(
+    settings.conditionalTrackingParamGroups,
+    DEFAULT_SETTINGS.conditionalTrackingParamGroups
+  ),
+  outputTemplate: normalizeOutputTemplate(settings.outputTemplate, DEFAULT_SETTINGS.outputTemplate)
+});
+
+const conditionalGroupsToText = (groups) => JSON.stringify(groups, null, 2);
+
+const parseConditionalGroupsText = (value) => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  const parsed = JSON.parse(trimmed);
+  if (!Array.isArray(parsed)) {
+    throw new Error('Conditional tracking groups must be an array');
+  }
+
+  return normalizeConditionalTrackingParamGroups(parsed, []);
+};
+
+let currentSettings = normalizeSettings(DEFAULT_SETTINGS);
 
 const loadSettings = async () => {
   const stored = await chrome.storage.sync.get(DEFAULT_SETTINGS);
-  const normalized = {
-    stripTitleSuffix: Boolean(stored.stripTitleSuffix),
-    titleSeparators: normalizeList(stored.titleSeparators, DEFAULT_SETTINGS.titleSeparators),
-    titleSuffixKeywords: normalizeList(
-      stored.titleSuffixKeywords,
-      DEFAULT_SETTINGS.titleSuffixKeywords
-    )
-  };
+  const normalized = normalizeSettings(stored);
   currentSettings = normalized;
   return normalized;
 };
 
 const saveSettings = async (settings) => {
-  currentSettings = settings;
-  await chrome.storage.sync.set(settings);
+  const normalized = normalizeSettings(settings);
+  currentSettings = normalized;
+  await chrome.storage.sync.set(normalized);
 };
 
 const renderSettings = (settings) => {
@@ -153,28 +219,81 @@ const renderSettings = (settings) => {
   if (keywordsEl) {
     keywordsEl.value = listToText(settings.titleSuffixKeywords);
   }
+  if (trackingParamsEl) {
+    trackingParamsEl.value = listToText(settings.trackingParams);
+  }
+  if (trackingPrefixesEl) {
+    trackingPrefixesEl.value = listToText(settings.trackingPrefixes);
+  }
+  if (conditionalGroupsEl) {
+    conditionalGroupsEl.value = conditionalGroupsToText(settings.conditionalTrackingParamGroups);
+  }
+  if (outputTemplateEl) {
+    outputTemplateEl.value = settings.outputTemplate;
+  }
 };
 
 const collectSettingsFromUI = () => ({
   stripTitleSuffix: stripTitleToggle?.checked ?? DEFAULT_SETTINGS.stripTitleSuffix,
   titleSeparators: separatorsEl ? parseLines(separatorsEl.value) : DEFAULT_SETTINGS.titleSeparators,
-  titleSuffixKeywords: keywordsEl ? parseLines(keywordsEl.value) : DEFAULT_SETTINGS.titleSuffixKeywords
+  titleSuffixKeywords: keywordsEl ? parseLines(keywordsEl.value) : DEFAULT_SETTINGS.titleSuffixKeywords,
+  trackingParams: trackingParamsEl ? parseLines(trackingParamsEl.value) : DEFAULT_SETTINGS.trackingParams,
+  trackingPrefixes: trackingPrefixesEl
+    ? parseLines(trackingPrefixesEl.value)
+    : DEFAULT_SETTINGS.trackingPrefixes,
+  conditionalTrackingParamGroups: conditionalGroupsEl
+    ? parseConditionalGroupsText(conditionalGroupsEl.value)
+    : DEFAULT_SETTINGS.conditionalTrackingParamGroups,
+  outputTemplate: outputTemplateEl ? outputTemplateEl.value : DEFAULT_SETTINGS.outputTemplate
 });
 
 const bindSettingsEvents = () => {
-  if (!stripTitleToggle || !separatorsEl || !keywordsEl) {
+  if (
+    !stripTitleToggle ||
+    !separatorsEl ||
+    !keywordsEl ||
+    !trackingParamsEl ||
+    !trackingPrefixesEl ||
+    !conditionalGroupsEl ||
+    !outputTemplateEl
+  ) {
     return;
   }
 
   const handleSave = async () => {
-    const nextSettings = collectSettingsFromUI();
-    await saveSettings(nextSettings);
-    setSettingsStatus('设置已保存');
+    try {
+      const nextSettings = collectSettingsFromUI();
+      await saveSettings(nextSettings);
+      setSettingsStatus('设置已保存');
+    } catch (error) {
+      console.warn('Unable to save settings.', error);
+      setSettingsStatus('设置格式有误，请检查 JSON');
+    }
   };
 
-  stripTitleToggle.addEventListener('change', handleSave);
-  separatorsEl.addEventListener('change', handleSave);
-  keywordsEl.addEventListener('change', handleSave);
+  [
+    stripTitleToggle,
+    separatorsEl,
+    keywordsEl,
+    trackingParamsEl,
+    trackingPrefixesEl,
+    conditionalGroupsEl,
+    outputTemplateEl
+  ].forEach((element) => {
+    element.addEventListener('change', handleSave);
+  });
+};
+
+const bindPopupEvents = () => {
+  if (!openSettingsButton) {
+    return;
+  }
+
+  openSettingsButton.addEventListener('click', () => {
+    if (chrome.runtime?.openOptionsPage) {
+      chrome.runtime.openOptionsPage();
+    }
+  });
 };
 
 const getActiveTab = async () => {
@@ -192,8 +311,39 @@ const normalizeTitleCandidate = (value) => {
     return '';
   }
 
-  return value.trim();
+  return value.trim().replace(/\s+/g, ' ');
 };
+
+const escapeMarkdownText = (value) => value.replace(/\\/g, '\\\\').replace(/\[/g, '\\[').replace(/\]/g, '\\]');
+
+const escapeMarkdownUrl = (value) => value.replace(/\\/g, '\\\\').replace(/\)/g, '\\)');
+
+const getHostname = (rawUrl) => {
+  try {
+    return new URL(rawUrl).hostname;
+  } catch (error) {
+    return '';
+  }
+};
+
+const renderOutputTemplate = (template, context) =>
+  template.replace(/{{\s*([A-Za-z][A-Za-z0-9_]*)\s*}}/g, (match, key) => {
+    if (Object.prototype.hasOwnProperty.call(context, key)) {
+      return context[key];
+    }
+
+    return '';
+  });
+
+const buildOutputContext = ({ title, url, rawTitle, rawUrl }) => ({
+  title,
+  url,
+  rawTitle: rawTitle || '',
+  rawUrl: rawUrl || '',
+  hostname: getHostname(url || rawUrl),
+  markdownTitle: escapeMarkdownText(title),
+  markdownUrl: escapeMarkdownUrl(url)
+});
 
 const getPageTitleSnapshot = async (tabId) => {
   if (tabId === undefined || !chrome.scripting?.executeScript) {
@@ -252,21 +402,41 @@ const pickPreferredTitle = (tabTitle, pageTitleSnapshot) => {
 
 const normalizeKey = (key) => key.toLowerCase();
 
-const shouldRemoveParam = (key) => {
+const shouldRemoveParam = (key, settings = currentSettings) => {
   const normalizedKey = normalizeKey(key);
+  const effectiveSettings = normalizeSettings(settings);
 
-  if (TRACKING_PARAMS.has(normalizedKey)) {
+  if (effectiveSettings.trackingParams.includes(normalizedKey)) {
     return true;
   }
 
-  return TRACKING_PREFIXES.some((prefix) => normalizedKey.startsWith(prefix));
+  return effectiveSettings.trackingPrefixes.some((prefix) => normalizedKey.startsWith(prefix));
 };
 
-const collectParamsToDelete = (searchParams) => {
+const hasTrackingMarkers = (searchParams, markerParams) => {
+  for (const key of searchParams.keys()) {
+    if (markerParams.has(normalizeKey(key))) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const collectParamsToDelete = (searchParams, settings = currentSettings) => {
   const keysToDelete = [];
+  const effectiveSettings = normalizeSettings(settings);
+  const activeConditionalGroups = effectiveSettings.conditionalTrackingParamGroups.filter((group) =>
+    hasTrackingMarkers(searchParams, new Set(group.markers))
+  );
 
   for (const key of searchParams.keys()) {
-    if (shouldRemoveParam(key)) {
+    const normalizedKey = normalizeKey(key);
+
+    if (
+      shouldRemoveParam(key, effectiveSettings) ||
+      activeConditionalGroups.some((group) => group.remove.includes(normalizedKey))
+    ) {
       keysToDelete.push(key);
     }
   }
@@ -274,8 +444,8 @@ const collectParamsToDelete = (searchParams) => {
   return keysToDelete;
 };
 
-const stripTrackingParams = (searchParams) => {
-  const paramsToDelete = collectParamsToDelete(searchParams);
+const stripTrackingParams = (searchParams, settings = currentSettings) => {
+  const paramsToDelete = collectParamsToDelete(searchParams, settings);
   paramsToDelete.forEach((key) => {
     searchParams.delete(key);
   });
@@ -283,13 +453,13 @@ const stripTrackingParams = (searchParams) => {
 
 const looksLikeQueryString = (value) => value.includes('=') || value.includes('&');
 
-const cleanQueryString = (queryString) => {
+const cleanQueryString = (queryString, settings = currentSettings) => {
   const params = new URLSearchParams(queryString);
-  stripTrackingParams(params);
+  stripTrackingParams(params, settings);
   return params.toString();
 };
 
-const cleanHash = (hash) => {
+const cleanHash = (hash, settings = currentSettings) => {
   if (!hash) {
     return '';
   }
@@ -302,7 +472,7 @@ const cleanHash = (hash) => {
 
   if (hashValue.includes('?')) {
     const [pathPart, queryPart] = hashValue.split('?');
-    const cleanedQuery = cleanQueryString(queryPart);
+    const cleanedQuery = cleanQueryString(queryPart, settings);
 
     if (!cleanedQuery) {
       return pathPart ? `#${pathPart}` : '';
@@ -312,27 +482,28 @@ const cleanHash = (hash) => {
   }
 
   if (looksLikeQueryString(hashValue)) {
-    const cleanedQuery = cleanQueryString(hashValue);
+    const cleanedQuery = cleanQueryString(hashValue, settings);
     return cleanedQuery ? `#${cleanedQuery}` : '';
   }
 
-  if (shouldRemoveParam(hashValue)) {
+  if (shouldRemoveParam(hashValue, settings)) {
     return '';
   }
 
   return `#${hashValue}`;
 };
 
-const cleanUrl = (rawUrl) => {
+const cleanUrl = (rawUrl, settings = currentSettings) => {
   try {
+    const effectiveSettings = normalizeSettings(settings);
     const url = new URL(rawUrl);
-    stripTrackingParams(url.searchParams);
+    stripTrackingParams(url.searchParams, effectiveSettings);
 
     if (!url.searchParams.toString()) {
       url.search = '';
     }
 
-    url.hash = cleanHash(url.hash);
+    url.hash = cleanHash(url.hash, effectiveSettings);
 
     return url.toString();
   } catch (error) {
@@ -503,7 +674,7 @@ const findKeywordCutIndex = (title, keywords, separators) => {
 };
 
 const cleanTitle = (rawTitle, settings) => {
-  const baseTitle = (rawTitle || '未命名页面').trim() || '未命名页面';
+  const baseTitle = normalizeTitleCandidate(rawTitle || '未命名页面') || '未命名页面';
   const effectiveSettings = settings || DEFAULT_SETTINGS;
 
   if (!effectiveSettings.stripTitleSuffix) {
@@ -558,6 +729,7 @@ const copyMarkdownLink = async (settings = currentSettings) => {
   setStatus('处理中...');
 
   try {
+    const effectiveSettings = normalizeSettings(settings);
     const tab = await getActiveTab();
     if (!tab.url) {
       setStatus('无法获取当前页面信息');
@@ -565,14 +737,22 @@ const copyMarkdownLink = async (settings = currentSettings) => {
     }
 
     const pageTitleSnapshot = await getPageTitleSnapshot(tab.id);
-    const title = cleanTitle(pickPreferredTitle(tab.title, pageTitleSnapshot), settings);
-    const cleanLink = cleanUrl(tab.url);
-    const markdownSnippet = `[${title}](${cleanLink})`;
+    const rawTitle = tab.title || '';
+    const rawUrl = tab.url;
+    const title = cleanTitle(pickPreferredTitle(rawTitle, pageTitleSnapshot), effectiveSettings);
+    const cleanLink = cleanUrl(rawUrl, effectiveSettings);
+    const outputContext = buildOutputContext({
+      title,
+      url: cleanLink,
+      rawTitle,
+      rawUrl
+    });
+    const outputSnippet = renderOutputTemplate(effectiveSettings.outputTemplate, outputContext);
 
-    await copyToClipboard(markdownSnippet);
-    setStatus('已复制 Markdown 链接 ✔️');
+    await copyToClipboard(outputSnippet);
+    setStatus('已复制链接文本 ✔️');
   } catch (error) {
-    console.error('Failed to copy markdown link', error);
+    console.error('Failed to copy link text', error);
     setStatus('复制失败，请稍后重试');
   }
 };
@@ -582,6 +762,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const settings = await loadSettings();
     renderSettings(settings);
     bindSettingsEvents();
-    copyMarkdownLink(settings);
+    bindPopupEvents();
+
+    if (document.body?.dataset?.page === 'popup') {
+      copyMarkdownLink(settings);
+    }
   })();
 });

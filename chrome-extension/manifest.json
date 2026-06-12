@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Markdown Link Copier",
-  "description": "Cleans the current tab URL and copies it as a Markdown link to the clipboard.",
-  "version": "1.1.1",
+  "description": "Cleans the current tab URL and copies it as formatted text to the clipboard.",
+  "version": "1.2.0",
   "permissions": ["activeTab", "tabs", "scripting", "clipboardWrite", "storage"],
+  "options_page": "options.html",
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Copy Markdown Link",
+    "default_title": "Copy Link Text",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png"

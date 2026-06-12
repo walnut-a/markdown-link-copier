@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <title>Markdown Link Copier 设置</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body data-page="options">
+    <main>
+      <h1>处理规则设置</h1>
+      <section class="settings" aria-label="处理规则设置">
+        <div class="settings-body">
+          <p class="section-title">标题</p>
+          <label class="checkbox">
+            <input type="checkbox" id="strip-title-suffix">
+            去掉标题后缀（站点 slogan）
+          </label>
+          <label class="field">
+            分隔符（每行一个）
+            <textarea id="title-separators" rows="4"></textarea>
+            <span class="help">规则：命中关键词时，会从关键词前最近的分隔符截断。</span>
+            <span class="help">示例：文章标题 - 专栏 | 站点名 -> 文章标题 - 专栏</span>
+          </label>
+          <label class="field">
+            屏蔽关键词（每行一个，可选）
+            <textarea id="title-suffix-keywords" rows="3"></textarea>
+            <span class="help">规则：关键词在标题中出现即生效；若在结尾则直接去除。</span>
+            <span class="help">示例：文章标题 | 站点名 -> 文章标题</span>
+          </label>
+          <p class="section-title">链接</p>
+          <label class="field">
+            删除参数（每行一个）
+            <textarea id="tracking-params" rows="6"></textarea>
+          </label>
+          <label class="field">
+            删除参数前缀（每行一个）
+            <textarea id="tracking-prefixes" rows="4"></textarea>
+          </label>
+          <label class="field">
+            条件参数组（JSON）
+            <textarea id="conditional-tracking-groups" rows="7"></textarea>
+            <span class="help">markers 命中任意一个时，删除 remove 里的参数。</span>
+          </label>
+          <p class="section-title">输出</p>
+          <label class="field">
+            输出模板
+            <textarea id="output-template" rows="4"></textarea>
+            <span class="help">变量：title、url、rawTitle、rawUrl、hostname、markdownTitle、markdownUrl。</span>
+          </label>
+          <p id="settings-status" class="hint" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+    </main>
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>
