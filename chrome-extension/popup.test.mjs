@@ -10,16 +10,21 @@ const optionsHtml = await fs.readFile(path.resolve('chrome-extension/options.htm
 const manifest = JSON.parse(await fs.readFile(path.resolve('chrome-extension/manifest.json'), 'utf8'));
 const clipboardWrites = [];
 const consoleWarnings = [];
+const consoleErrors = [];
 const createdTabs = [];
 const statusElement = { textContent: '', dataset: {} };
 const titleSourceElement = { textContent: '', hidden: true };
+const cleanupSummaryElement = { textContent: '', hidden: true };
 const resultPreviewElement = { value: '', hidden: true };
 const resultPanelElement = { hidden: true };
+const retryCopyElement = { hidden: true, addEventListener: () => {} };
 const uiElements = new Map([
   ['status', statusElement],
   ['title-source', titleSourceElement],
+  ['cleanup-summary', cleanupSummaryElement],
   ['result-preview', resultPreviewElement],
-  ['result-panel', resultPanelElement]
+  ['result-panel', resultPanelElement],
+  ['retry-copy', retryCopyElement]
 ]);
 let activeTabs = [];
 let executeScriptResult = [];
@@ -32,9 +37,14 @@ let sourceDocumentTitle = '';
 const sourceSelectorMatches = new Map();
 const sourceSelectorLists = new Map();
 let pageSourceResponse = null;
+let clipboardWriteError = null;
+let execCommandSuccessful = true;
 
 console.warn = (...args) => {
   consoleWarnings.push(args);
+};
+console.error = (...args) => {
+  consoleErrors.push(args);
 };
 
 Object.defineProperty(globalThis, 'document', {
@@ -51,7 +61,7 @@ Object.defineProperty(globalThis, 'document', {
       appendChild: () => {},
       removeChild: () => {}
     },
-    execCommand: () => true,
+    execCommand: () => execCommandSuccessful,
     querySelector: (selector) => pageSelectorMatches.get(selector) || null,
     querySelectorAll: (selector) => pageSelectorLists.get(selector) || [],
     get title() {
@@ -96,6 +106,9 @@ Object.defineProperty(globalThis, 'navigator', {
   value: {
     clipboard: {
       writeText: async (text) => {
+        if (clipboardWriteError) {
+          throw clipboardWriteError;
+        }
         clipboardWrites.push(text);
       }
     }
@@ -140,7 +153,7 @@ Object.defineProperty(globalThis, 'DOMParser', {
 
 const popupModule = await import(
   `data:text/javascript;charset=utf-8,${encodeURIComponent(
-    `${popupSource}\nexport { cleanTitle, cleanUrl, DEFAULT_SETTINGS, copyMarkdownLink, migrateSettings, getOutputPresetId, parseImportedSettings, serializeSettings };`
+    `${popupSource}\nexport { cleanTitle, cleanUrl, DEFAULT_SETTINGS, copyMarkdownLink, retryLastCopy, migrateSettings, getOutputPresetId, parseImportedSettings, serializeSettings };`
   )}`
 );
 
@@ -149,6 +162,7 @@ const {
   cleanUrl,
   DEFAULT_SETTINGS,
   copyMarkdownLink,
+  retryLastCopy,
   migrateSettings,
   getOutputPresetId,
   parseImportedSettings,
@@ -158,14 +172,18 @@ const {
 const resetBrowserState = () => {
   clipboardWrites.length = 0;
   consoleWarnings.length = 0;
+  consoleErrors.length = 0;
   createdTabs.length = 0;
   statusElement.textContent = '';
   statusElement.dataset.state = '';
   titleSourceElement.textContent = '';
   titleSourceElement.hidden = true;
+  cleanupSummaryElement.textContent = '';
+  cleanupSummaryElement.hidden = true;
   resultPreviewElement.value = '';
   resultPreviewElement.hidden = true;
   resultPanelElement.hidden = true;
+  retryCopyElement.hidden = true;
   activeTabs = [];
   executeScriptResult = [];
   executeScriptError = null;
@@ -177,6 +195,8 @@ const resetBrowserState = () => {
   sourceSelectorMatches.clear();
   sourceSelectorLists.clear();
   pageSourceResponse = null;
+  clipboardWriteError = null;
+  execCommandSuccessful = true;
 };
 
 test('keeps the article title when the site name is a short prefix', () => {
@@ -232,9 +252,11 @@ test('prefers page metadata when the tab title includes extra site text', async 
   assert.equal(resultPreviewElement.hidden, false);
   assert.equal(titleSourceElement.textContent, '标题来源：Open Graph');
   assert.equal(titleSourceElement.hidden, false);
+  assert.equal(cleanupSummaryElement.textContent, '链接处理：移除 utm_source');
+  assert.equal(cleanupSummaryElement.hidden, false);
   assert.equal(resultPanelElement.hidden, false);
   assert.equal(statusElement.dataset.state, 'success');
-  assert.equal(statusElement.textContent, '已复制链接文本');
+  assert.equal(statusElement.textContent, '已复制 · 清理 1 项');
 });
 
 test('falls back to the tab title when page metadata cannot be read', async () => {
@@ -416,6 +438,41 @@ test('uses the canonical URL before cleaning tracking parameters', async () => {
   await copyMarkdownLink(DEFAULT_SETTINGS);
 
   assert.equal(clipboardWrites.at(-1), '[Canonical article](https://example.com/article)');
+  assert.equal(cleanupSummaryElement.textContent, '链接处理：采用规范链接');
+  assert.equal(statusElement.textContent, '已复制 · 清理 1 项');
+});
+
+test('keeps the generated result visible and supports retry when clipboard writing fails', async () => {
+  resetBrowserState();
+  activeTabs = [
+    {
+      id: 12,
+      title: 'Readable result',
+      url: 'https://example.com/readable'
+    }
+  ];
+  executeScriptResult = [{ result: { ogTitle: 'Readable result' } }];
+  clipboardWriteError = new Error('Clipboard is unavailable');
+  execCommandSuccessful = false;
+
+  await copyMarkdownLink(DEFAULT_SETTINGS);
+
+  assert.equal(resultPreviewElement.value, '[Readable result](https://example.com/readable)');
+  assert.equal(resultPreviewElement.hidden, false);
+  assert.equal(resultPanelElement.hidden, false);
+  assert.equal(retryCopyElement.hidden, false);
+  assert.equal(statusElement.dataset.state, 'error');
+  assert.equal(statusElement.textContent, '自动复制失败，请手动复制');
+  assert.equal(consoleErrors.length, 1);
+
+  clipboardWriteError = null;
+  execCommandSuccessful = true;
+  await retryLastCopy();
+
+  assert.equal(clipboardWrites.at(-1), '[Readable result](https://example.com/readable)');
+  assert.equal(retryCopyElement.hidden, true);
+  assert.equal(statusElement.dataset.state, 'success');
+  assert.equal(statusElement.textContent, '已复制链接文本');
 });
 
 test('ignores canonical URLs that point to another site', async () => {
@@ -603,10 +660,12 @@ test('declares a discoverable action shortcut without the broad tabs permission'
   assert.equal(manifest.commands._execute_action.description, '复制当前页面链接文本');
 });
 
-test('includes result preview, title source, and shortcut settings controls in the popup', () => {
+test('includes result details, retry, and shortcut settings controls in the popup', () => {
   assert.match(popupHtml, /id="result-panel"/);
   assert.match(popupHtml, /id="result-preview"/);
   assert.match(popupHtml, /id="title-source"/);
+  assert.match(popupHtml, /id="cleanup-summary"/);
+  assert.match(popupHtml, /id="retry-copy"/);
   assert.match(popupHtml, /id="open-shortcuts"/);
 });
 

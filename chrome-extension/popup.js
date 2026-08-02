@@ -108,7 +108,9 @@ const DEFAULT_SETTINGS = {
 const statusEl = document.getElementById('status');
 const resultPanelEl = document.getElementById('result-panel');
 const titleSourceEl = document.getElementById('title-source');
+const cleanupSummaryEl = document.getElementById('cleanup-summary');
 const resultPreviewEl = document.getElementById('result-preview');
+const retryCopyButton = document.getElementById('retry-copy');
 const settingsStatusEl = document.getElementById('settings-status');
 const stripTitleToggle = document.getElementById('strip-title-suffix');
 const separatorsEl = document.getElementById('title-separators');
@@ -124,6 +126,8 @@ const importSettingsFileEl = document.getElementById('import-settings-file');
 const resetSettingsButton = document.getElementById('reset-settings');
 const openSettingsButton = document.getElementById('open-settings');
 const openShortcutsButton = document.getElementById('open-shortcuts');
+let lastCopyText = '';
+let lastSuccessStatus = '已复制链接文本';
 
 const setStatus = (message, state = 'neutral') => {
   if (statusEl) {
@@ -146,19 +150,30 @@ const clearCopyResult = () => {
     titleSourceEl.textContent = '';
     titleSourceEl.hidden = true;
   }
+  if (cleanupSummaryEl) {
+    cleanupSummaryEl.textContent = '';
+    cleanupSummaryEl.hidden = true;
+  }
   if (resultPreviewEl) {
     resultPreviewEl.value = '';
     resultPreviewEl.hidden = true;
   }
+  if (retryCopyButton) {
+    retryCopyButton.hidden = true;
+  }
 };
 
-const showCopyResult = (text, titleSourceLabel) => {
+const showCopyResult = (text, titleSourceLabel, cleanupSummary = '') => {
   if (resultPanelEl) {
     resultPanelEl.hidden = false;
   }
   if (titleSourceEl) {
     titleSourceEl.textContent = `标题来源：${titleSourceLabel}`;
     titleSourceEl.hidden = false;
+  }
+  if (cleanupSummaryEl) {
+    cleanupSummaryEl.textContent = cleanupSummary;
+    cleanupSummaryEl.hidden = !cleanupSummary;
   }
   if (resultPreviewEl) {
     resultPreviewEl.value = text;
@@ -474,6 +489,10 @@ const bindPopupEvents = () => {
       chrome.tabs?.create?.({ url: 'chrome://extensions/shortcuts' });
     });
   }
+
+  if (retryCopyButton) {
+    retryCopyButton.addEventListener('click', retryLastCopy);
+  }
 };
 
 const getActiveTab = async () => {
@@ -704,7 +723,7 @@ const pickPreferredUrl = (rawUrl, pageTitleSnapshot) => {
     pageTitleSnapshot?.sourceCanonicalUrl || pageTitleSnapshot?.canonicalUrl || '';
 
   if (!canonicalUrl) {
-    return rawUrl;
+    return { url: rawUrl, usedCanonical: false };
   }
 
   try {
@@ -714,9 +733,13 @@ const pickPreferredUrl = (rawUrl, pageTitleSnapshot) => {
     const isSameSite =
       normalizeComparableHostname(raw.hostname) === normalizeComparableHostname(canonical.hostname);
 
-    return isHttp && isSameSite ? canonical.href : rawUrl;
+    if (isHttp && isSameSite) {
+      return { url: canonical.href, usedCanonical: canonical.href !== rawUrl };
+    }
+
+    return { url: rawUrl, usedCanonical: false };
   } catch (error) {
-    return rawUrl;
+    return { url: rawUrl, usedCanonical: false };
   }
 };
 
@@ -769,17 +792,18 @@ const stripTrackingParams = (searchParams, settings = currentSettings) => {
   paramsToDelete.forEach((key) => {
     searchParams.delete(key);
   });
+  return paramsToDelete;
 };
 
 const looksLikeQueryString = (value) => value.includes('=') || value.includes('&');
 
-const cleanQueryString = (queryString, settings = currentSettings) => {
+const cleanQueryString = (queryString, settings = currentSettings, removedParams = []) => {
   const params = new URLSearchParams(queryString);
-  stripTrackingParams(params, settings);
+  removedParams.push(...stripTrackingParams(params, settings));
   return params.toString();
 };
 
-const cleanHash = (hash, settings = currentSettings) => {
+const cleanHash = (hash, settings = currentSettings, removedParams = []) => {
   if (!hash) {
     return '';
   }
@@ -792,7 +816,7 @@ const cleanHash = (hash, settings = currentSettings) => {
 
   if (hashValue.includes('?')) {
     const [pathPart, queryPart] = hashValue.split('?');
-    const cleanedQuery = cleanQueryString(queryPart, settings);
+    const cleanedQuery = cleanQueryString(queryPart, settings, removedParams);
 
     if (!cleanedQuery) {
       return pathPart ? `#${pathPart}` : '';
@@ -802,35 +826,53 @@ const cleanHash = (hash, settings = currentSettings) => {
   }
 
   if (looksLikeQueryString(hashValue)) {
-    const cleanedQuery = cleanQueryString(hashValue, settings);
+    const cleanedQuery = cleanQueryString(hashValue, settings, removedParams);
     return cleanedQuery ? `#${cleanedQuery}` : '';
   }
 
   if (shouldRemoveParam(hashValue, settings)) {
+    removedParams.push(hashValue);
     return '';
   }
 
   return `#${hashValue}`;
 };
 
-const cleanUrl = (rawUrl, settings = currentSettings) => {
+const uniqueParamNames = (paramNames) => {
+  const seen = new Set();
+
+  return paramNames.filter((name) => {
+    const normalized = normalizeKey(name);
+    if (seen.has(normalized)) {
+      return false;
+    }
+
+    seen.add(normalized);
+    return true;
+  });
+};
+
+const cleanUrlWithDetails = (rawUrl, settings = currentSettings) => {
   try {
     const effectiveSettings = normalizeSettings(settings);
     const url = new URL(rawUrl);
-    stripTrackingParams(url.searchParams, effectiveSettings);
+    const removedParams = stripTrackingParams(url.searchParams, effectiveSettings);
 
     if (!url.searchParams.toString()) {
       url.search = '';
     }
 
-    url.hash = cleanHash(url.hash, effectiveSettings);
+    url.hash = cleanHash(url.hash, effectiveSettings, removedParams);
 
-    return url.toString();
+    return { url: url.toString(), removedParams: uniqueParamNames(removedParams) };
   } catch (error) {
     console.warn('Unable to clean URL, returning raw.', error);
-    return rawUrl;
+    return { url: rawUrl, removedParams: [] };
   }
 };
+
+const cleanUrl = (rawUrl, settings = currentSettings) =>
+  cleanUrlWithDetails(rawUrl, settings).url;
 
 const findLastSeparatorMatch = (title, separators) => {
   if (!separators || separators.length === 0) {
@@ -1045,9 +1087,57 @@ const copyToClipboard = async (text) => {
   }
 };
 
+const describeUrlProcessing = ({ usedCanonical, removedParams }) => {
+  const details = [];
+
+  if (usedCanonical) {
+    details.push('采用规范链接');
+  }
+  if (removedParams.length > 0) {
+    details.push(`移除 ${removedParams.join('、')}`);
+  }
+
+  return {
+    summary: details.length > 0 ? `链接处理：${details.join(' · ')}` : '',
+    count: (usedCanonical ? 1 : 0) + removedParams.length
+  };
+};
+
+const copyPreparedText = async (text, successStatus) => {
+  try {
+    await copyToClipboard(text);
+    if (retryCopyButton) {
+      retryCopyButton.hidden = true;
+    }
+    setStatus(successStatus, 'success');
+    return true;
+  } catch (error) {
+    console.error('Failed to write generated link text to the clipboard.', error);
+    if (retryCopyButton) {
+      retryCopyButton.hidden = false;
+    }
+    setStatus('自动复制失败，请手动复制', 'error');
+    return false;
+  }
+};
+
+const retryLastCopy = async () => {
+  if (!lastCopyText) {
+    return;
+  }
+
+  setStatus('正在再次复制...', 'loading');
+  if (retryCopyButton) {
+    retryCopyButton.hidden = true;
+  }
+  await copyPreparedText(lastCopyText, lastSuccessStatus);
+};
+
 const copyMarkdownLink = async (settings = currentSettings) => {
   setStatus('正在读取当前页面...', 'loading');
   clearCopyResult();
+  lastCopyText = '';
+  lastSuccessStatus = '已复制链接文本';
 
   try {
     const effectiveSettings = normalizeSettings(settings);
@@ -1063,18 +1153,24 @@ const copyMarkdownLink = async (settings = currentSettings) => {
     const preferredTitle = pickPreferredTitle(rawTitle, pageTitleSnapshot);
     const title = cleanTitle(preferredTitle.title, effectiveSettings);
     const preferredUrl = pickPreferredUrl(rawUrl, pageTitleSnapshot);
-    const cleanLink = cleanUrl(preferredUrl, effectiveSettings);
+    const cleanLink = cleanUrlWithDetails(preferredUrl.url, effectiveSettings);
+    const urlProcessing = describeUrlProcessing({
+      usedCanonical: preferredUrl.usedCanonical,
+      removedParams: cleanLink.removedParams
+    });
     const outputContext = buildOutputContext({
       title,
-      url: cleanLink,
+      url: cleanLink.url,
       rawTitle,
       rawUrl
     });
     const outputSnippet = renderOutputTemplate(effectiveSettings.outputTemplate, outputContext);
 
-    await copyToClipboard(outputSnippet);
-    showCopyResult(outputSnippet, preferredTitle.sourceLabel);
-    setStatus('已复制链接文本', 'success');
+    lastCopyText = outputSnippet;
+    lastSuccessStatus =
+      urlProcessing.count > 0 ? `已复制 · 清理 ${urlProcessing.count} 项` : '已复制链接文本';
+    showCopyResult(outputSnippet, preferredTitle.sourceLabel, urlProcessing.summary);
+    await copyPreparedText(outputSnippet, lastSuccessStatus);
   } catch (error) {
     console.error('Failed to copy link text', error);
     setStatus('复制失败，请稍后重试', 'error');

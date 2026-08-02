@@ -8,9 +8,15 @@
   <body data-page="popup">
     <main class="popup-shell">
       <h1>复制链接文本</h1>
-      <p id="status" data-state="loading" role="status" aria-live="polite">正在准备...</p>
+      <div class="status-row">
+        <p id="status" data-state="loading" role="status" aria-live="polite">正在准备...</p>
+        <button id="retry-copy" class="retry-button" type="button" hidden>再次复制</button>
+      </div>
       <section id="result-panel" class="result-panel" aria-label="复制结果" hidden>
-        <span id="title-source" class="result-source" hidden></span>
+        <div class="result-details">
+          <span id="title-source" class="result-source" hidden></span>
+          <span id="cleanup-summary" class="cleanup-summary" hidden></span>
+        </div>
         <textarea
           id="result-preview"
           aria-label="已复制内容"

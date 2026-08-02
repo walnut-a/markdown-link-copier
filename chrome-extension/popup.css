@@ -55,11 +55,17 @@ body[data-page='popup'] h1 {
   letter-spacing: -0.005em;
 }
 
+.status-row {
+  display: flex;
+  align-items: center;
+  margin: 8px 0 12px;
+}
+
 #status {
   display: flex;
   align-items: center;
   gap: 7px;
-  margin: 8px 0 12px;
+  margin: 0;
   color: var(--text-muted);
   font-size: 11.5px;
   font-weight: 450;
@@ -100,6 +106,28 @@ body[data-page='popup'] h1 {
   background: var(--danger);
 }
 
+.retry-button {
+  margin-left: auto;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--danger);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.retry-button:hover {
+  background: #fff0ef;
+}
+
+.retry-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
 @keyframes status-spin {
   to {
     transform: rotate(360deg);
@@ -113,16 +141,27 @@ body[data-page='popup'] h1 {
   padding: 9px 10px 10px;
 }
 
-.result-source {
+.result-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 7px;
+}
+
+.result-source,
+.cleanup-summary {
   display: block;
   overflow: hidden;
-  margin: 0 0 6px;
   color: var(--text-muted);
   font-size: 10.5px;
   font-weight: 500;
   line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.cleanup-summary {
+  color: #5d636b;
 }
 
 .popup-actions {
