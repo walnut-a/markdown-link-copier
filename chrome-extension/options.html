@@ -43,10 +43,25 @@
           </label>
           <p class="section-title">输出</p>
           <label class="field">
+            输出预设
+            <select id="output-preset">
+              <option value="markdown">Markdown 链接</option>
+              <option value="title-url">标题与链接分行</option>
+              <option value="url">仅链接</option>
+              <option value="custom">自定义模板</option>
+            </select>
+          </label>
+          <label class="field">
             输出模板
             <textarea id="output-template" rows="4"></textarea>
             <span class="help">变量：title、url、rawTitle、rawUrl、hostname、markdownTitle、markdownUrl。</span>
           </label>
+          <div class="settings-actions" aria-label="设置备份与恢复">
+            <button id="export-settings" class="secondary-button" type="button">导出设置</button>
+            <button id="import-settings" class="secondary-button" type="button">导入设置</button>
+            <button id="reset-settings" class="secondary-button danger-button" type="button">恢复默认</button>
+            <input id="import-settings-file" type="file" accept="application/json,.json" hidden>
+          </div>
           <p id="settings-status" class="hint" role="status" aria-live="polite"></p>
         </div>
       </section>

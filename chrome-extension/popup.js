@@ -74,6 +74,11 @@ const DEFAULT_CONDITIONAL_TRACKING_PARAM_GROUPS = [
 ];
 
 const DEFAULT_OUTPUT_TEMPLATE = '[{{markdownTitle}}]({{markdownUrl}})';
+const OUTPUT_PRESETS = [
+  { id: 'markdown', template: DEFAULT_OUTPUT_TEMPLATE },
+  { id: 'title-url', template: '{{title}}\n{{url}}' },
+  { id: 'url', template: '{{url}}' }
+];
 const SETTINGS_VERSION = 2;
 const LEGACY_RISKY_TRACKING_PARAMS = [
   'ref',
@@ -101,6 +106,7 @@ const DEFAULT_SETTINGS = {
 };
 
 const statusEl = document.getElementById('status');
+const resultPanelEl = document.getElementById('result-panel');
 const titleSourceEl = document.getElementById('title-source');
 const resultPreviewEl = document.getElementById('result-preview');
 const settingsStatusEl = document.getElementById('settings-status');
@@ -111,12 +117,18 @@ const trackingParamsEl = document.getElementById('tracking-params');
 const trackingPrefixesEl = document.getElementById('tracking-prefixes');
 const conditionalGroupsEl = document.getElementById('conditional-tracking-groups');
 const outputTemplateEl = document.getElementById('output-template');
+const outputPresetEl = document.getElementById('output-preset');
+const exportSettingsButton = document.getElementById('export-settings');
+const importSettingsButton = document.getElementById('import-settings');
+const importSettingsFileEl = document.getElementById('import-settings-file');
+const resetSettingsButton = document.getElementById('reset-settings');
 const openSettingsButton = document.getElementById('open-settings');
 const openShortcutsButton = document.getElementById('open-shortcuts');
 
-const setStatus = (message) => {
+const setStatus = (message, state = 'neutral') => {
   if (statusEl) {
     statusEl.textContent = message;
+    statusEl.dataset.state = state;
   }
 };
 
@@ -127,6 +139,9 @@ const setSettingsStatus = (message) => {
 };
 
 const clearCopyResult = () => {
+  if (resultPanelEl) {
+    resultPanelEl.hidden = true;
+  }
   if (titleSourceEl) {
     titleSourceEl.textContent = '';
     titleSourceEl.hidden = true;
@@ -138,6 +153,9 @@ const clearCopyResult = () => {
 };
 
 const showCopyResult = (text, titleSourceLabel) => {
+  if (resultPanelEl) {
+    resultPanelEl.hidden = false;
+  }
   if (titleSourceEl) {
     titleSourceEl.textContent = `标题来源：${titleSourceLabel}`;
     titleSourceEl.hidden = false;
@@ -190,6 +208,27 @@ const normalizeOutputTemplate = (value, fallback) => {
   return fallback;
 };
 
+const getOutputPresetId = (template) =>
+  OUTPUT_PRESETS.find((preset) => preset.template === template)?.id || 'custom';
+
+const serializeSettings = (settings) => JSON.stringify(normalizeSettings(settings), null, 2);
+
+const parseImportedSettings = (text) => {
+  let parsed;
+
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw new Error('设置文件不是有效的 JSON');
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('设置文件必须是 JSON 对象');
+  }
+
+  return normalizeSettings(migrateSettings(parsed));
+};
+
 const listsHaveSameValues = (left, right) => {
   if (!Array.isArray(left) || left.length !== right.length) {
     return false;
@@ -225,7 +264,10 @@ const migrateSettings = (settings = {}) => {
 
 const normalizeSettings = (settings = {}) => ({
   settingsVersion: SETTINGS_VERSION,
-  stripTitleSuffix: Boolean(settings.stripTitleSuffix),
+  stripTitleSuffix:
+    typeof settings.stripTitleSuffix === 'boolean'
+      ? settings.stripTitleSuffix
+      : DEFAULT_SETTINGS.stripTitleSuffix,
   titleSeparators: normalizeList(settings.titleSeparators, DEFAULT_SETTINGS.titleSeparators),
   titleSuffixKeywords: normalizeList(
     settings.titleSuffixKeywords,
@@ -298,6 +340,9 @@ const renderSettings = (settings) => {
   if (outputTemplateEl) {
     outputTemplateEl.value = settings.outputTemplate;
   }
+  if (outputPresetEl) {
+    outputPresetEl.value = getOutputPresetId(settings.outputTemplate);
+  }
 };
 
 const collectSettingsFromUI = () => ({
@@ -322,7 +367,8 @@ const bindSettingsEvents = () => {
     !trackingParamsEl ||
     !trackingPrefixesEl ||
     !conditionalGroupsEl ||
-    !outputTemplateEl
+    !outputTemplateEl ||
+    !outputPresetEl
   ) {
     return;
   }
@@ -344,11 +390,74 @@ const bindSettingsEvents = () => {
     keywordsEl,
     trackingParamsEl,
     trackingPrefixesEl,
-    conditionalGroupsEl,
-    outputTemplateEl
+    conditionalGroupsEl
   ].forEach((element) => {
     element.addEventListener('change', handleSave);
   });
+
+  outputTemplateEl.addEventListener('change', async () => {
+    outputPresetEl.value = getOutputPresetId(outputTemplateEl.value);
+    await handleSave();
+  });
+
+  outputPresetEl.addEventListener('change', async () => {
+    const preset = OUTPUT_PRESETS.find((item) => item.id === outputPresetEl.value);
+    if (!preset) {
+      return;
+    }
+
+    outputTemplateEl.value = preset.template;
+    await handleSave();
+  });
+
+  if (exportSettingsButton) {
+    exportSettingsButton.addEventListener('click', () => {
+      const blob = new Blob([serializeSettings(collectSettingsFromUI())], {
+        type: 'application/json'
+      });
+      const downloadUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = downloadUrl;
+      anchor.download = 'markdown-link-copier-settings.json';
+      anchor.click();
+      URL.revokeObjectURL(downloadUrl);
+      setSettingsStatus('设置已导出');
+    });
+  }
+
+  if (importSettingsButton && importSettingsFileEl) {
+    importSettingsButton.addEventListener('click', () => importSettingsFileEl.click());
+    importSettingsFileEl.addEventListener('change', async () => {
+      const [file] = importSettingsFileEl.files || [];
+      if (!file) {
+        return;
+      }
+
+      try {
+        const imported = parseImportedSettings(await file.text());
+        await saveSettings(imported);
+        renderSettings(imported);
+        setSettingsStatus('设置已导入');
+      } catch (error) {
+        console.warn('Unable to import settings.', error);
+        setSettingsStatus(error.message || '设置导入失败');
+      } finally {
+        importSettingsFileEl.value = '';
+      }
+    });
+  }
+
+  if (resetSettingsButton) {
+    resetSettingsButton.addEventListener('click', async () => {
+      if (!confirm('确定恢复全部默认设置吗？')) {
+        return;
+      }
+
+      await saveSettings(DEFAULT_SETTINGS);
+      renderSettings(DEFAULT_SETTINGS);
+      setSettingsStatus('已恢复默认设置');
+    });
+  }
 };
 
 const bindPopupEvents = () => {
@@ -937,14 +1046,14 @@ const copyToClipboard = async (text) => {
 };
 
 const copyMarkdownLink = async (settings = currentSettings) => {
-  setStatus('处理中...');
+  setStatus('正在读取当前页面...', 'loading');
   clearCopyResult();
 
   try {
     const effectiveSettings = normalizeSettings(settings);
     const tab = await getActiveTab();
     if (!tab.url) {
-      setStatus('无法获取当前页面信息');
+      setStatus('无法获取当前页面信息', 'error');
       return;
     }
 
@@ -965,10 +1074,10 @@ const copyMarkdownLink = async (settings = currentSettings) => {
 
     await copyToClipboard(outputSnippet);
     showCopyResult(outputSnippet, preferredTitle.sourceLabel);
-    setStatus('已复制链接文本 ✔️');
+    setStatus('已复制链接文本', 'success');
   } catch (error) {
     console.error('Failed to copy link text', error);
-    setStatus('复制失败，请稍后重试');
+    setStatus('复制失败，请稍后重试', 'error');
   }
 };
 

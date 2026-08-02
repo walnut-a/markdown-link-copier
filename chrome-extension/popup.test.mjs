@@ -6,17 +6,20 @@ import path from 'node:path';
 const popupPath = path.resolve('chrome-extension/popup.js');
 const popupSource = await fs.readFile(popupPath, 'utf8');
 const popupHtml = await fs.readFile(path.resolve('chrome-extension/popup.html'), 'utf8');
+const optionsHtml = await fs.readFile(path.resolve('chrome-extension/options.html'), 'utf8');
 const manifest = JSON.parse(await fs.readFile(path.resolve('chrome-extension/manifest.json'), 'utf8'));
 const clipboardWrites = [];
 const consoleWarnings = [];
 const createdTabs = [];
-const statusElement = { textContent: '' };
+const statusElement = { textContent: '', dataset: {} };
 const titleSourceElement = { textContent: '', hidden: true };
 const resultPreviewElement = { value: '', hidden: true };
+const resultPanelElement = { hidden: true };
 const uiElements = new Map([
   ['status', statusElement],
   ['title-source', titleSourceElement],
-  ['result-preview', resultPreviewElement]
+  ['result-preview', resultPreviewElement],
+  ['result-panel', resultPanelElement]
 ]);
 let activeTabs = [];
 let executeScriptResult = [];
@@ -137,21 +140,32 @@ Object.defineProperty(globalThis, 'DOMParser', {
 
 const popupModule = await import(
   `data:text/javascript;charset=utf-8,${encodeURIComponent(
-    `${popupSource}\nexport { cleanTitle, cleanUrl, DEFAULT_SETTINGS, copyMarkdownLink, migrateSettings };`
+    `${popupSource}\nexport { cleanTitle, cleanUrl, DEFAULT_SETTINGS, copyMarkdownLink, migrateSettings, getOutputPresetId, parseImportedSettings, serializeSettings };`
   )}`
 );
 
-const { cleanTitle, cleanUrl, DEFAULT_SETTINGS, copyMarkdownLink, migrateSettings } = popupModule;
+const {
+  cleanTitle,
+  cleanUrl,
+  DEFAULT_SETTINGS,
+  copyMarkdownLink,
+  migrateSettings,
+  getOutputPresetId,
+  parseImportedSettings,
+  serializeSettings
+} = popupModule;
 
 const resetBrowserState = () => {
   clipboardWrites.length = 0;
   consoleWarnings.length = 0;
   createdTabs.length = 0;
   statusElement.textContent = '';
+  statusElement.dataset.state = '';
   titleSourceElement.textContent = '';
   titleSourceElement.hidden = true;
   resultPreviewElement.value = '';
   resultPreviewElement.hidden = true;
+  resultPanelElement.hidden = true;
   activeTabs = [];
   executeScriptResult = [];
   executeScriptError = null;
@@ -218,6 +232,9 @@ test('prefers page metadata when the tab title includes extra site text', async 
   assert.equal(resultPreviewElement.hidden, false);
   assert.equal(titleSourceElement.textContent, '标题来源：Open Graph');
   assert.equal(titleSourceElement.hidden, false);
+  assert.equal(resultPanelElement.hidden, false);
+  assert.equal(statusElement.dataset.state, 'success');
+  assert.equal(statusElement.textContent, '已复制链接文本');
 });
 
 test('falls back to the tab title when page metadata cannot be read', async () => {
@@ -587,7 +604,36 @@ test('declares a discoverable action shortcut without the broad tabs permission'
 });
 
 test('includes result preview, title source, and shortcut settings controls in the popup', () => {
+  assert.match(popupHtml, /id="result-panel"/);
   assert.match(popupHtml, /id="result-preview"/);
   assert.match(popupHtml, /id="title-source"/);
   assert.match(popupHtml, /id="open-shortcuts"/);
+});
+
+test('maps built-in output templates to presets and keeps custom templates', () => {
+  assert.equal(getOutputPresetId('[{{markdownTitle}}]({{markdownUrl}})'), 'markdown');
+  assert.equal(getOutputPresetId('{{title}}\n{{url}}'), 'title-url');
+  assert.equal(getOutputPresetId('{{url}}'), 'url');
+  assert.equal(getOutputPresetId('{{hostname}} :: {{title}}'), 'custom');
+});
+
+test('serializes and validates imported settings', () => {
+  const exported = serializeSettings({
+    ...DEFAULT_SETTINGS,
+    stripTitleSuffix: false,
+    outputTemplate: '{{url}}'
+  });
+  const imported = parseImportedSettings(exported);
+
+  assert.equal(imported.stripTitleSuffix, false);
+  assert.equal(imported.outputTemplate, '{{url}}');
+  assert.throws(() => parseImportedSettings('[]'), /设置文件必须是 JSON 对象/);
+  assert.throws(() => parseImportedSettings('{broken'), /设置文件不是有效的 JSON/);
+});
+
+test('includes output presets and settings backup controls in the options page', () => {
+  assert.match(optionsHtml, /id="output-preset"/);
+  assert.match(optionsHtml, /id="export-settings"/);
+  assert.match(optionsHtml, /id="import-settings"/);
+  assert.match(optionsHtml, /id="reset-settings"/);
 });

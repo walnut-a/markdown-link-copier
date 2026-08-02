@@ -34,6 +34,7 @@
 - 优先采用同站 canonical 地址，再清理追踪参数
 - 支持清理站点后缀，减少标题里的站点名和 slogan
 - 支持通过设置页修改 URL 清洗规则、条件参数组和输出模板
+- 内置常用输出预设，支持导入、导出和恢复设置
 - 复制后显示实际结果和标题来源，并提供快捷键设置入口
 - 默认复制结果是 Markdown 链接，适合粘贴到笔记、文档和博客里
 
@@ -41,6 +42,7 @@
 
 - 扩展主体在 `chrome-extension/`
 - 测试命令：`node --test chrome-extension/popup.test.mjs`
+- 精简发布包：`./scripts/package-extension.sh`
 
 ## 详细说明
 
