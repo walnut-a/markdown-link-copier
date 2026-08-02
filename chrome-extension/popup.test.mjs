@@ -5,11 +5,30 @@ import path from 'node:path';
 
 const popupPath = path.resolve('chrome-extension/popup.js');
 const popupSource = await fs.readFile(popupPath, 'utf8');
+const popupHtml = await fs.readFile(path.resolve('chrome-extension/popup.html'), 'utf8');
+const manifest = JSON.parse(await fs.readFile(path.resolve('chrome-extension/manifest.json'), 'utf8'));
 const clipboardWrites = [];
 const consoleWarnings = [];
+const createdTabs = [];
+const statusElement = { textContent: '' };
+const titleSourceElement = { textContent: '', hidden: true };
+const resultPreviewElement = { value: '', hidden: true };
+const uiElements = new Map([
+  ['status', statusElement],
+  ['title-source', titleSourceElement],
+  ['result-preview', resultPreviewElement]
+]);
 let activeTabs = [];
 let executeScriptResult = [];
 let executeScriptError = null;
+let executeScriptImplementation = null;
+let pageDocumentTitle = '';
+const pageSelectorMatches = new Map();
+const pageSelectorLists = new Map();
+let sourceDocumentTitle = '';
+const sourceSelectorMatches = new Map();
+const sourceSelectorLists = new Map();
+let pageSourceResponse = null;
 
 console.warn = (...args) => {
   consoleWarnings.push(args);
@@ -17,7 +36,7 @@ console.warn = (...args) => {
 
 Object.defineProperty(globalThis, 'document', {
   value: {
-    getElementById: () => null,
+    getElementById: (id) => uiElements.get(id) || null,
     addEventListener: () => {},
     createElement: () => ({
       setAttribute: () => {},
@@ -29,7 +48,12 @@ Object.defineProperty(globalThis, 'document', {
       appendChild: () => {},
       removeChild: () => {}
     },
-    execCommand: () => true
+    execCommand: () => true,
+    querySelector: (selector) => pageSelectorMatches.get(selector) || null,
+    querySelectorAll: (selector) => pageSelectorLists.get(selector) || [],
+    get title() {
+      return pageDocumentTitle;
+    }
   },
   configurable: true
 });
@@ -43,12 +67,19 @@ Object.defineProperty(globalThis, 'chrome', {
       }
     },
     tabs: {
-      query: async () => activeTabs
+      query: async () => activeTabs,
+      create: async (options) => {
+        createdTabs.push(options);
+      }
     },
     scripting: {
-      executeScript: async () => {
+      executeScript: async (options) => {
         if (executeScriptError) {
           throw executeScriptError;
+        }
+
+        if (executeScriptImplementation) {
+          return [{ result: await executeScriptImplementation(options) }];
         }
 
         return executeScriptResult;
@@ -69,20 +100,69 @@ Object.defineProperty(globalThis, 'navigator', {
   configurable: true
 });
 
+Object.defineProperty(globalThis, 'location', {
+  value: {
+    get href() {
+      return activeTabs[0]?.url || '';
+    }
+  },
+  configurable: true
+});
+
+Object.defineProperty(globalThis, 'fetch', {
+  value: async () => {
+    if (!pageSourceResponse) {
+      throw new Error('Page source is unavailable');
+    }
+
+    return pageSourceResponse;
+  },
+  configurable: true
+});
+
+Object.defineProperty(globalThis, 'DOMParser', {
+  value: class {
+    parseFromString() {
+      return {
+        querySelector: (selector) => sourceSelectorMatches.get(selector) || null,
+        querySelectorAll: (selector) => sourceSelectorLists.get(selector) || [],
+        get title() {
+          return sourceDocumentTitle;
+        }
+      };
+    }
+  },
+  configurable: true
+});
+
 const popupModule = await import(
   `data:text/javascript;charset=utf-8,${encodeURIComponent(
-    `${popupSource}\nexport { cleanTitle, cleanUrl, DEFAULT_SETTINGS, copyMarkdownLink };`
+    `${popupSource}\nexport { cleanTitle, cleanUrl, DEFAULT_SETTINGS, copyMarkdownLink, migrateSettings };`
   )}`
 );
 
-const { cleanTitle, cleanUrl, DEFAULT_SETTINGS, copyMarkdownLink } = popupModule;
+const { cleanTitle, cleanUrl, DEFAULT_SETTINGS, copyMarkdownLink, migrateSettings } = popupModule;
 
 const resetBrowserState = () => {
   clipboardWrites.length = 0;
   consoleWarnings.length = 0;
+  createdTabs.length = 0;
+  statusElement.textContent = '';
+  titleSourceElement.textContent = '';
+  titleSourceElement.hidden = true;
+  resultPreviewElement.value = '';
+  resultPreviewElement.hidden = true;
   activeTabs = [];
   executeScriptResult = [];
   executeScriptError = null;
+  executeScriptImplementation = null;
+  pageDocumentTitle = '';
+  pageSelectorMatches.clear();
+  pageSelectorLists.clear();
+  sourceDocumentTitle = '';
+  sourceSelectorMatches.clear();
+  sourceSelectorLists.clear();
+  pageSourceResponse = null;
 };
 
 test('keeps the article title when the site name is a short prefix', () => {
@@ -134,6 +214,10 @@ test('prefers page metadata when the tab title includes extra site text', async 
     clipboardWrites.at(-1),
     '[vol.564 喜夜群英会｜四士同堂：这四年能与列位共谋大事，人间这一遭没白来](https://www.xiaoyuzhoufm.com/episode/696d0b8edfbebe2f382b3108)'
   );
+  assert.equal(resultPreviewElement.value, clipboardWrites.at(-1));
+  assert.equal(resultPreviewElement.hidden, false);
+  assert.equal(titleSourceElement.textContent, '标题来源：Open Graph');
+  assert.equal(titleSourceElement.hidden, false);
 });
 
 test('falls back to the tab title when page metadata cannot be read', async () => {
@@ -185,6 +269,161 @@ test('prefers the X article title over generic page metadata', async () => {
   );
 });
 
+test('prefers an article h2 over a site-wide h1 when metadata is missing', async () => {
+  resetBrowserState();
+  activeTabs = [
+    {
+      id: 7,
+      title: 'Control the ideas, not the code - <antirez>',
+      url: 'https://antirez.com/news/169'
+    }
+  ];
+  pageDocumentTitle = 'Control the ideas, not the code - <antirez>';
+  pageSelectorMatches.set('article h1, article h2, main h1, main h2', {
+    textContent: 'Control the ideas, not the code'
+  });
+  pageSelectorLists.set('h1', [{ textContent: '<antirez>' }]);
+  executeScriptImplementation = ({ func }) => func();
+
+  await copyMarkdownLink(DEFAULT_SETTINGS);
+
+  assert.equal(
+    clipboardWrites.at(-1),
+    '[Control the ideas, not the code](https://antirez.com/news/169)'
+  );
+});
+
+test('prefers the original source heading when the visible page has been translated', async () => {
+  resetBrowserState();
+  activeTabs = [
+    {
+      id: 8,
+      title: '控制思想，而不是代码 - <antirez>',
+      url: 'https://antirez.com/news/169'
+    }
+  ];
+  pageDocumentTitle = '控制思想，而不是代码 - <antirez>';
+  pageSelectorMatches.set('article h1, article h2, main h1, main h2', {
+    textContent: '控制思想，而不是代码'
+  });
+  pageSelectorLists.set('h1', [{ textContent: '<antirez>' }]);
+  sourceDocumentTitle = 'Control the ideas, not the code - <antirez>';
+  sourceSelectorMatches.set('article h1, article h2, main h1, main h2', {
+    textContent: 'Control the ideas, not the code'
+  });
+  sourceSelectorLists.set('h1', [{ textContent: '<antirez>' }]);
+  pageSourceResponse = {
+    ok: true,
+    headers: { get: () => 'text/html; charset=utf-8' },
+    text: async () => '<html></html>'
+  };
+  executeScriptImplementation = ({ func }) => func();
+
+  await copyMarkdownLink(DEFAULT_SETTINGS);
+
+  assert.equal(
+    clipboardWrites.at(-1),
+    '[Control the ideas, not the code](https://antirez.com/news/169)'
+  );
+});
+
+test('uses a JSON-LD headline before a generic document title', async () => {
+  resetBrowserState();
+  activeTabs = [
+    {
+      id: 9,
+      title: 'Example News',
+      url: 'https://example.com/news/launch'
+    }
+  ];
+  pageDocumentTitle = 'Example News';
+  pageSelectorLists.set('script[type="application/ld+json"]', [
+    {
+      textContent: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'NewsArticle',
+        headline: 'A better original headline'
+      })
+    }
+  ]);
+  executeScriptImplementation = ({ func }) => func();
+
+  await copyMarkdownLink(DEFAULT_SETTINGS);
+
+  assert.equal(
+    clipboardWrites.at(-1),
+    '[A better original headline](https://example.com/news/launch)'
+  );
+  assert.equal(titleSourceElement.textContent, '标题来源：JSON-LD');
+});
+
+test('uses meta name title when social metadata is missing', async () => {
+  resetBrowserState();
+  activeTabs = [
+    {
+      id: 10,
+      title: 'Example',
+      url: 'https://example.com/read'
+    }
+  ];
+  pageDocumentTitle = 'Example';
+  pageSelectorMatches.set('meta[name="title"]', {
+    getAttribute: () => 'The article meta title'
+  });
+  executeScriptImplementation = ({ func }) => func();
+
+  await copyMarkdownLink(DEFAULT_SETTINGS);
+
+  assert.equal(clipboardWrites.at(-1), '[The article meta title](https://example.com/read)');
+  assert.equal(titleSourceElement.textContent, '标题来源：页面元数据');
+});
+
+test('uses the canonical URL before cleaning tracking parameters', async () => {
+  resetBrowserState();
+  activeTabs = [
+    {
+      id: 11,
+      title: 'Canonical article',
+      url: 'https://www.example.com/article?utm_source=newsletter'
+    }
+  ];
+  executeScriptResult = [
+    {
+      result: {
+        ogTitle: 'Canonical article',
+        canonicalUrl: 'https://example.com/article'
+      }
+    }
+  ];
+
+  await copyMarkdownLink(DEFAULT_SETTINGS);
+
+  assert.equal(clipboardWrites.at(-1), '[Canonical article](https://example.com/article)');
+});
+
+test('ignores canonical URLs that point to another site', async () => {
+  resetBrowserState();
+  activeTabs = [
+    {
+      id: 12,
+      title: 'Canonical article',
+      url: 'https://example.com/article?utm_source=newsletter'
+    }
+  ];
+  executeScriptResult = [
+    {
+      result: {
+        ogTitle: 'Canonical article',
+        canonicalUrl: 'https://unrelated.example/article'
+      }
+    }
+  ];
+
+  await copyMarkdownLink(DEFAULT_SETTINGS);
+
+  assert.equal(clipboardWrites.at(-1), '[Canonical article](https://example.com/article)');
+});
+
 test('removes Substack email tracking parameters from copied links', async () => {
   resetBrowserState();
   activeTabs = [
@@ -219,6 +458,46 @@ test('keeps short r parameters when there are no Substack tracking markers', () 
 
 test('keeps post_id parameters when there are no Substack tracking markers', () => {
   assert.equal(cleanUrl('https://example.com/read?post_id=201013502'), 'https://example.com/read?post_id=201013502');
+});
+
+test('keeps generic parameters that may control page behavior', () => {
+  assert.equal(
+    cleanUrl(
+      'https://example.com/report?from=2026-01-01&source=archive&ref=section&campaign=spring&ref_type=article&share_mode=compact'
+    ),
+    'https://example.com/report?from=2026-01-01&source=archive&ref=section&campaign=spring&ref_type=article&share_mode=compact'
+  );
+});
+
+test('migrates untouched legacy cleaning defaults without changing custom rules', () => {
+  const legacyDefaults = {
+    ...DEFAULT_SETTINGS,
+    settingsVersion: 1,
+    trackingParams: [
+      ...DEFAULT_SETTINGS.trackingParams,
+      'ref',
+      'ref_url',
+      'referrer',
+      'referrer_id',
+      'referral',
+      'refid',
+      'source',
+      'from',
+      'share',
+      'campaign'
+    ],
+    trackingPrefixes: [...DEFAULT_SETTINGS.trackingPrefixes, 'ref_', 'share_']
+  };
+  const migratedDefaults = migrateSettings(legacyDefaults);
+  const customized = migrateSettings({
+    ...legacyDefaults,
+    trackingParams: ['utm_source', 'ref']
+  });
+
+  assert.equal(migratedDefaults.settingsVersion, DEFAULT_SETTINGS.settingsVersion);
+  assert.deepEqual(migratedDefaults.trackingParams, DEFAULT_SETTINGS.trackingParams);
+  assert.deepEqual(migratedDefaults.trackingPrefixes, DEFAULT_SETTINGS.trackingPrefixes);
+  assert.deepEqual(customized.trackingParams, ['utm_source', 'ref']);
 });
 
 test('uses configurable URL cleaning rules', () => {
@@ -300,4 +579,15 @@ test('renders copied text with a configurable output template', async () => {
     clipboardWrites.at(-1),
     'example.com :: Ship [Markdown] safely\nhttps://example.com/docs/markdown-(v2)\nraw=https://example.com/docs/markdown-(v2)?utm_source=newsletter'
   );
+});
+
+test('declares a discoverable action shortcut without the broad tabs permission', () => {
+  assert.equal(manifest.permissions.includes('tabs'), false);
+  assert.equal(manifest.commands._execute_action.description, '复制当前页面链接文本');
+});
+
+test('includes result preview, title source, and shortcut settings controls in the popup', () => {
+  assert.match(popupHtml, /id="result-preview"/);
+  assert.match(popupHtml, /id="title-source"/);
+  assert.match(popupHtml, /id="open-shortcuts"/);
 });

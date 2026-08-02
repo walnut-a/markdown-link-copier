@@ -32,8 +32,12 @@ h1 {
   margin: 0;
 }
 
-#open-settings {
-  align-self: flex-start;
+.popup-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.secondary-button {
   font: inherit;
   font-size: 13px;
   padding: 5px 10px;
@@ -44,9 +48,17 @@ h1 {
   cursor: pointer;
 }
 
-#open-settings:focus-visible {
+.secondary-button:focus-visible {
   outline: 2px solid #4f7cff;
   outline-offset: 2px;
+}
+
+#result-preview {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 58px;
+  resize: vertical;
+  background: #f7f7f7;
 }
 
 .settings {

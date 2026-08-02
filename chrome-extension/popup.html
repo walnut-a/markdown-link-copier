@@ -9,7 +9,19 @@
     <main>
       <h1>复制链接文本</h1>
       <p id="status" role="status" aria-live="polite">正在准备...</p>
-      <button id="open-settings" type="button">设置</button>
+      <p id="title-source" class="hint" hidden></p>
+      <textarea
+        id="result-preview"
+        aria-label="已复制内容"
+        rows="3"
+        readonly
+        spellcheck="false"
+        hidden
+      ></textarea>
+      <div class="popup-actions">
+        <button id="open-settings" class="secondary-button" type="button">设置</button>
+        <button id="open-shortcuts" class="secondary-button" type="button">快捷键</button>
+      </div>
     </main>
     <script src="popup.js" type="module"></script>
   </body>

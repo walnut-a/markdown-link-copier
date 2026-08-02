@@ -33,26 +33,16 @@ const DEFAULT_TRACKING_PARAMS = [
   '_hsenc',
   '_hsmi',
   'hsctatracking',
-  'ref',
   'ref_src',
-  'ref_url',
-  'referrer',
-  'referrer_id',
-  'referral',
-  'refid',
   'spm',
   'spm_id_from',
   'scm',
   'scm_id',
-  'source',
-  'from',
-  'share',
   'share_source',
   'share_id',
   'share_channel',
   'share_medium',
   'share_from',
-  'campaign',
   'campaign_id',
   'cmpid',
   'ad_id',
@@ -71,8 +61,6 @@ const DEFAULT_TRACKING_PREFIXES = [
   'icp',
   'scm',
   'mkt_',
-  'ref_',
-  'share_',
   'vero_',
   'hsa_',
   'hs_'
@@ -86,8 +74,23 @@ const DEFAULT_CONDITIONAL_TRACKING_PARAM_GROUPS = [
 ];
 
 const DEFAULT_OUTPUT_TEMPLATE = '[{{markdownTitle}}]({{markdownUrl}})';
+const SETTINGS_VERSION = 2;
+const LEGACY_RISKY_TRACKING_PARAMS = [
+  'ref',
+  'ref_url',
+  'referrer',
+  'referrer_id',
+  'referral',
+  'refid',
+  'source',
+  'from',
+  'share',
+  'campaign'
+];
+const LEGACY_RISKY_TRACKING_PREFIXES = ['ref_', 'share_'];
 
 const DEFAULT_SETTINGS = {
+  settingsVersion: SETTINGS_VERSION,
   stripTitleSuffix: true,
   titleSeparators: [' - ', ' – ', ' — ', ' | ', ' ｜ ', ' · ', ' • ', ' _ ', ' / '],
   titleSuffixKeywords: [],
@@ -98,6 +101,8 @@ const DEFAULT_SETTINGS = {
 };
 
 const statusEl = document.getElementById('status');
+const titleSourceEl = document.getElementById('title-source');
+const resultPreviewEl = document.getElementById('result-preview');
 const settingsStatusEl = document.getElementById('settings-status');
 const stripTitleToggle = document.getElementById('strip-title-suffix');
 const separatorsEl = document.getElementById('title-separators');
@@ -107,6 +112,7 @@ const trackingPrefixesEl = document.getElementById('tracking-prefixes');
 const conditionalGroupsEl = document.getElementById('conditional-tracking-groups');
 const outputTemplateEl = document.getElementById('output-template');
 const openSettingsButton = document.getElementById('open-settings');
+const openShortcutsButton = document.getElementById('open-shortcuts');
 
 const setStatus = (message) => {
   if (statusEl) {
@@ -117,6 +123,28 @@ const setStatus = (message) => {
 const setSettingsStatus = (message) => {
   if (settingsStatusEl) {
     settingsStatusEl.textContent = message;
+  }
+};
+
+const clearCopyResult = () => {
+  if (titleSourceEl) {
+    titleSourceEl.textContent = '';
+    titleSourceEl.hidden = true;
+  }
+  if (resultPreviewEl) {
+    resultPreviewEl.value = '';
+    resultPreviewEl.hidden = true;
+  }
+};
+
+const showCopyResult = (text, titleSourceLabel) => {
+  if (titleSourceEl) {
+    titleSourceEl.textContent = `标题来源：${titleSourceLabel}`;
+    titleSourceEl.hidden = false;
+  }
+  if (resultPreviewEl) {
+    resultPreviewEl.value = text;
+    resultPreviewEl.hidden = false;
   }
 };
 
@@ -162,7 +190,41 @@ const normalizeOutputTemplate = (value, fallback) => {
   return fallback;
 };
 
+const listsHaveSameValues = (left, right) => {
+  if (!Array.isArray(left) || left.length !== right.length) {
+    return false;
+  }
+
+  const normalizedLeft = new Set(left.map((item) => String(item).trim().toLowerCase()));
+  return right.every((item) => normalizedLeft.has(item.toLowerCase()));
+};
+
+const migrateSettings = (settings = {}) => {
+  const migrated = { ...settings, settingsVersion: SETTINGS_VERSION };
+  const storedVersion = Number(settings.settingsVersion) || 0;
+
+  if (storedVersion >= SETTINGS_VERSION) {
+    return migrated;
+  }
+
+  const legacyTrackingParams = [...DEFAULT_TRACKING_PARAMS, ...LEGACY_RISKY_TRACKING_PARAMS];
+  const legacyTrackingPrefixes = [
+    ...DEFAULT_TRACKING_PREFIXES,
+    ...LEGACY_RISKY_TRACKING_PREFIXES
+  ];
+
+  if (listsHaveSameValues(settings.trackingParams, legacyTrackingParams)) {
+    migrated.trackingParams = [...DEFAULT_TRACKING_PARAMS];
+  }
+  if (listsHaveSameValues(settings.trackingPrefixes, legacyTrackingPrefixes)) {
+    migrated.trackingPrefixes = [...DEFAULT_TRACKING_PREFIXES];
+  }
+
+  return migrated;
+};
+
 const normalizeSettings = (settings = {}) => ({
+  settingsVersion: SETTINGS_VERSION,
   stripTitleSuffix: Boolean(settings.stripTitleSuffix),
   titleSeparators: normalizeList(settings.titleSeparators, DEFAULT_SETTINGS.titleSeparators),
   titleSuffixKeywords: normalizeList(
@@ -197,9 +259,14 @@ const parseConditionalGroupsText = (value) => {
 let currentSettings = normalizeSettings(DEFAULT_SETTINGS);
 
 const loadSettings = async () => {
-  const stored = await chrome.storage.sync.get(DEFAULT_SETTINGS);
-  const normalized = normalizeSettings(stored);
+  const stored = await chrome.storage.sync.get({ ...DEFAULT_SETTINGS, settingsVersion: 0 });
+  const normalized = normalizeSettings(migrateSettings(stored));
   currentSettings = normalized;
+
+  if ((Number(stored.settingsVersion) || 0) < SETTINGS_VERSION) {
+    await chrome.storage.sync.set(normalized);
+  }
+
   return normalized;
 };
 
@@ -285,15 +352,19 @@ const bindSettingsEvents = () => {
 };
 
 const bindPopupEvents = () => {
-  if (!openSettingsButton) {
-    return;
+  if (openSettingsButton) {
+    openSettingsButton.addEventListener('click', () => {
+      if (chrome.runtime?.openOptionsPage) {
+        chrome.runtime.openOptionsPage();
+      }
+    });
   }
 
-  openSettingsButton.addEventListener('click', () => {
-    if (chrome.runtime?.openOptionsPage) {
-      chrome.runtime.openOptionsPage();
-    }
-  });
+  if (openShortcutsButton) {
+    openShortcutsButton.addEventListener('click', () => {
+      chrome.tabs?.create?.({ url: 'chrome://extensions/shortcuts' });
+    });
+  }
 };
 
 const getActiveTab = async () => {
@@ -353,23 +424,129 @@ const getPageTitleSnapshot = async (tabId) => {
   try {
     const [result] = await chrome.scripting.executeScript({
       target: { tabId },
-      func: () => {
-        const getMetaContent = (selector) =>
-          document.querySelector(selector)?.getAttribute('content')?.trim() || '';
-        const h1Title =
-          Array.from(document.querySelectorAll('h1'))
-            .map((element) => element.textContent?.trim() || '')
-            .find(Boolean) || '';
-        const articleTitle =
-          document.querySelector('[data-testid="twitter-article-title"]')?.textContent?.trim() || '';
+      func: async () => {
+        const readTitleSnapshot = (root, pageUrl) => {
+          const getMetaContent = (selector) =>
+            root.querySelector(selector)?.getAttribute('content')?.trim() || '';
+          const findHeadline = (value) => {
+            if (Array.isArray(value)) {
+              for (const item of value) {
+                const headline = findHeadline(item);
+                if (headline) {
+                  return headline;
+                }
+              }
+              return '';
+            }
 
-        return {
-          articleTitle,
-          ogTitle: getMetaContent('meta[property="og:title"]'),
-          twitterTitle: getMetaContent('meta[name="twitter:title"]'),
-          h1Title,
-          documentTitle: document.title?.trim() || ''
+            if (!value || typeof value !== 'object') {
+              return '';
+            }
+
+            if (typeof value.headline === 'string' && value.headline.trim()) {
+              return value.headline.trim();
+            }
+
+            for (const child of Object.values(value)) {
+              const headline = findHeadline(child);
+              if (headline) {
+                return headline;
+              }
+            }
+
+            return '';
+          };
+          const jsonLdTitle =
+            Array.from(root.querySelectorAll('script[type="application/ld+json"]'))
+              .map((element) => {
+                try {
+                  return findHeadline(JSON.parse(element.textContent || ''));
+                } catch (error) {
+                  return '';
+                }
+              })
+              .find(Boolean) || '';
+          const h1Title =
+            Array.from(root.querySelectorAll('h1'))
+              .map((element) => element.textContent?.trim() || '')
+              .find(Boolean) || '';
+          const articleTitle =
+            root
+              .querySelector('[data-testid="twitter-article-title"]')
+              ?.textContent?.trim() || '';
+          const articleHeadingTitle =
+            root
+              .querySelector('article h1, article h2, main h1, main h2')
+              ?.textContent?.trim() || '';
+          const canonicalHref =
+            root.querySelector('link[rel="canonical"]')?.getAttribute('href')?.trim() || '';
+          let canonicalUrl = '';
+
+          if (canonicalHref) {
+            try {
+              canonicalUrl = new URL(canonicalHref, pageUrl).href;
+            } catch (error) {
+              canonicalUrl = '';
+            }
+          }
+
+          return {
+            articleTitle,
+            jsonLdTitle,
+            ogTitle: getMetaContent('meta[property="og:title"]'),
+            twitterTitle: getMetaContent('meta[name="twitter:title"]'),
+            metaTitle: getMetaContent('meta[name="title"]'),
+            articleHeadingTitle,
+            h1Title,
+            documentTitle: root.title?.trim() || '',
+            canonicalUrl
+          };
         };
+
+        const pageUrl = location.href;
+        const liveSnapshot = readTitleSnapshot(document, pageUrl);
+        if (
+          liveSnapshot.jsonLdTitle ||
+          liveSnapshot.ogTitle ||
+          liveSnapshot.twitterTitle ||
+          liveSnapshot.metaTitle
+        ) {
+          return liveSnapshot;
+        }
+
+        const sourceRequestController = new AbortController();
+        const sourceRequestTimeout = setTimeout(() => sourceRequestController.abort(), 2000);
+
+        try {
+          const response = await fetch(location.href, {
+            credentials: 'same-origin',
+            signal: sourceRequestController.signal
+          });
+          const contentType = response.headers.get('content-type') || '';
+          if (response.ok && contentType.toLowerCase().includes('text/html')) {
+            const sourceDocument = new DOMParser().parseFromString(await response.text(), 'text/html');
+            const sourceSnapshot = readTitleSnapshot(sourceDocument, pageUrl);
+
+            return {
+              ...liveSnapshot,
+              sourceArticleTitle: sourceSnapshot.articleTitle,
+              sourceJsonLdTitle: sourceSnapshot.jsonLdTitle,
+              sourceOgTitle: sourceSnapshot.ogTitle,
+              sourceTwitterTitle: sourceSnapshot.twitterTitle,
+              sourceMetaTitle: sourceSnapshot.metaTitle,
+              sourceArticleHeadingTitle: sourceSnapshot.articleHeadingTitle,
+              sourceH1Title: sourceSnapshot.h1Title,
+              sourceDocumentTitle: sourceSnapshot.documentTitle,
+              sourceCanonicalUrl: sourceSnapshot.canonicalUrl
+            };
+          }
+        } catch (error) {
+          // Some pages cannot be fetched again; their live title remains the fallback.
+        } finally {
+          clearTimeout(sourceRequestTimeout);
+        }
+
+        return liveSnapshot;
       }
     });
 
@@ -382,22 +559,56 @@ const getPageTitleSnapshot = async (tabId) => {
 
 const pickPreferredTitle = (tabTitle, pageTitleSnapshot) => {
   const candidates = [
-    pageTitleSnapshot?.articleTitle,
-    pageTitleSnapshot?.ogTitle,
-    pageTitleSnapshot?.twitterTitle,
-    pageTitleSnapshot?.h1Title,
-    pageTitleSnapshot?.documentTitle,
-    tabTitle
+    [pageTitleSnapshot?.sourceArticleTitle, '原始源码文章标题'],
+    [pageTitleSnapshot?.sourceJsonLdTitle, '原始源码 JSON-LD'],
+    [pageTitleSnapshot?.sourceOgTitle, '原始源码 Open Graph'],
+    [pageTitleSnapshot?.sourceTwitterTitle, '原始源码 Twitter Card'],
+    [pageTitleSnapshot?.sourceMetaTitle, '原始源码页面元数据'],
+    [pageTitleSnapshot?.sourceArticleHeadingTitle, '原始源码文章标题'],
+    [pageTitleSnapshot?.sourceDocumentTitle, '原始源码页面标题'],
+    [pageTitleSnapshot?.sourceH1Title, '原始源码 H1'],
+    [pageTitleSnapshot?.articleTitle, '文章标题'],
+    [pageTitleSnapshot?.jsonLdTitle, 'JSON-LD'],
+    [pageTitleSnapshot?.ogTitle, 'Open Graph'],
+    [pageTitleSnapshot?.twitterTitle, 'Twitter Card'],
+    [pageTitleSnapshot?.metaTitle, '页面元数据'],
+    [pageTitleSnapshot?.articleHeadingTitle, '文章标题'],
+    [pageTitleSnapshot?.h1Title, '页面 H1'],
+    [pageTitleSnapshot?.documentTitle, '页面标题'],
+    [tabTitle, '标签页标题']
   ];
 
-  for (const candidate of candidates) {
+  for (const [candidate, sourceLabel] of candidates) {
     const normalized = normalizeTitleCandidate(candidate);
     if (normalized) {
-      return normalized;
+      return { title: normalized, sourceLabel };
     }
   }
 
-  return '未命名页面';
+  return { title: '未命名页面', sourceLabel: '回退标题' };
+};
+
+const normalizeComparableHostname = (hostname) => hostname.toLowerCase().replace(/^www\./, '');
+
+const pickPreferredUrl = (rawUrl, pageTitleSnapshot) => {
+  const canonicalUrl =
+    pageTitleSnapshot?.sourceCanonicalUrl || pageTitleSnapshot?.canonicalUrl || '';
+
+  if (!canonicalUrl) {
+    return rawUrl;
+  }
+
+  try {
+    const raw = new URL(rawUrl);
+    const canonical = new URL(canonicalUrl, raw);
+    const isHttp = canonical.protocol === 'http:' || canonical.protocol === 'https:';
+    const isSameSite =
+      normalizeComparableHostname(raw.hostname) === normalizeComparableHostname(canonical.hostname);
+
+    return isHttp && isSameSite ? canonical.href : rawUrl;
+  } catch (error) {
+    return rawUrl;
+  }
 };
 
 const normalizeKey = (key) => key.toLowerCase();
@@ -727,6 +938,7 @@ const copyToClipboard = async (text) => {
 
 const copyMarkdownLink = async (settings = currentSettings) => {
   setStatus('处理中...');
+  clearCopyResult();
 
   try {
     const effectiveSettings = normalizeSettings(settings);
@@ -739,8 +951,10 @@ const copyMarkdownLink = async (settings = currentSettings) => {
     const pageTitleSnapshot = await getPageTitleSnapshot(tab.id);
     const rawTitle = tab.title || '';
     const rawUrl = tab.url;
-    const title = cleanTitle(pickPreferredTitle(rawTitle, pageTitleSnapshot), effectiveSettings);
-    const cleanLink = cleanUrl(rawUrl, effectiveSettings);
+    const preferredTitle = pickPreferredTitle(rawTitle, pageTitleSnapshot);
+    const title = cleanTitle(preferredTitle.title, effectiveSettings);
+    const preferredUrl = pickPreferredUrl(rawUrl, pageTitleSnapshot);
+    const cleanLink = cleanUrl(preferredUrl, effectiveSettings);
     const outputContext = buildOutputContext({
       title,
       url: cleanLink,
@@ -750,6 +964,7 @@ const copyMarkdownLink = async (settings = currentSettings) => {
     const outputSnippet = renderOutputTemplate(effectiveSettings.outputTemplate, outputContext);
 
     await copyToClipboard(outputSnippet);
+    showCopyResult(outputSnippet, preferredTitle.sourceLabel);
     setStatus('已复制链接文本 ✔️');
   } catch (error) {
     console.error('Failed to copy link text', error);
