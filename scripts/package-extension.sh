@@ -25,6 +25,8 @@ trap cleanup EXIT INT TERM
 mkdir -p "$package_root/icons" "$output_dir"
 cp \
   "$extension_root/manifest.json" \
+  "$extension_root/background.js" \
+  "$extension_root/page-feedback.js" \
   "$extension_root/popup.js" \
   "$extension_root/popup.css" \
   "$extension_root/popup.html" \

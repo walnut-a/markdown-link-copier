@@ -1,3 +1,5 @@
+import { showPageFeedback } from './page-feedback.js';
+
 const DEFAULT_TRACKING_PARAMS = [
   'utm_source',
   'utm_medium',
@@ -128,6 +130,7 @@ const openSettingsButton = document.getElementById('open-settings');
 const openShortcutsButton = document.getElementById('open-shortcuts');
 let lastCopyText = '';
 let lastSuccessStatus = '已复制链接文本';
+let lastCopyTabId;
 
 const setStatus = (message, state = 'neutral') => {
   if (statusEl) {
@@ -544,6 +547,23 @@ const buildOutputContext = ({ title, url, rawTitle, rawUrl }) => ({
   markdownUrl: escapeMarkdownUrl(url)
 });
 
+const normalizeSiteTitleKey = (value) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+
+const isSiteOnlyTitle = (value, pageUrl) => {
+  try {
+    const hostname = new URL(pageUrl).hostname.replace(/^www\./, '');
+    const siteLabel = hostname.split('.')[0];
+    const titleKey = normalizeSiteTitleKey(value);
+
+    return Boolean(titleKey) && titleKey === normalizeSiteTitleKey(siteLabel);
+  } catch (error) {
+    return false;
+  }
+};
+
 const getPageTitleSnapshot = async (tabId) => {
   if (tabId === undefined || !chrome.scripting?.executeScript) {
     return null;
@@ -553,6 +573,31 @@ const getPageTitleSnapshot = async (tabId) => {
     const [result] = await chrome.scripting.executeScript({
       target: { tabId },
       func: async () => {
+        const isSiteOnlyTitle = (value, pageUrl) => {
+          try {
+            const hostname = new URL(pageUrl).hostname.replace(/^www\./, '');
+            const siteLabel = hostname.split('.')[0];
+            const normalize = (text) =>
+              String(text || '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '');
+            const titleKey = normalize(value);
+
+            return Boolean(titleKey) && titleKey === normalize(siteLabel);
+          } catch (error) {
+            return false;
+          }
+        };
+        const isTranslatedPage = () => {
+          const rootClasses = document.documentElement?.classList;
+          const hasTranslatedClass =
+            rootClasses?.contains('translated-ltr') || rootClasses?.contains('translated-rtl');
+          const hasTranslateArtifact = document.querySelector(
+            '[data-google-translate], .goog-te-spinner-pos, #goog-gt-tt'
+          );
+
+          return Boolean(hasTranslatedClass || hasTranslateArtifact);
+        };
         const readTitleSnapshot = (root, pageUrl) => {
           const getMetaContent = (selector) =>
             root.querySelector(selector)?.getAttribute('content')?.trim() || '';
@@ -633,11 +678,25 @@ const getPageTitleSnapshot = async (tabId) => {
 
         const pageUrl = location.href;
         const liveSnapshot = readTitleSnapshot(document, pageUrl);
-        if (
-          liveSnapshot.jsonLdTitle ||
-          liveSnapshot.ogTitle ||
-          liveSnapshot.twitterTitle ||
+        const liveMetadataTitles = [
+          liveSnapshot.jsonLdTitle,
+          liveSnapshot.ogTitle,
+          liveSnapshot.twitterTitle,
           liveSnapshot.metaTitle
+        ];
+        if (liveMetadataTitles.some((title) => title && !isSiteOnlyTitle(title, pageUrl))) {
+          return liveSnapshot;
+        }
+
+        const liveReadableTitles = [
+          liveSnapshot.articleTitle,
+          liveSnapshot.articleHeadingTitle,
+          liveSnapshot.h1Title,
+          liveSnapshot.documentTitle
+        ];
+        if (
+          !isTranslatedPage() &&
+          liveReadableTitles.some((title) => title && !isSiteOnlyTitle(title, pageUrl))
         ) {
           return liveSnapshot;
         }
@@ -685,7 +744,7 @@ const getPageTitleSnapshot = async (tabId) => {
   }
 };
 
-const pickPreferredTitle = (tabTitle, pageTitleSnapshot) => {
+const pickPreferredTitle = (tabTitle, pageTitleSnapshot, pageUrl) => {
   const candidates = [
     [pageTitleSnapshot?.sourceArticleTitle, '原始源码文章标题'],
     [pageTitleSnapshot?.sourceJsonLdTitle, '原始源码 JSON-LD'],
@@ -706,14 +765,23 @@ const pickPreferredTitle = (tabTitle, pageTitleSnapshot) => {
     [tabTitle, '标签页标题']
   ];
 
+  let siteFallback = null;
+
   for (const [candidate, sourceLabel] of candidates) {
     const normalized = normalizeTitleCandidate(candidate);
-    if (normalized) {
-      return { title: normalized, sourceLabel };
+    if (!normalized) {
+      continue;
     }
+
+    if (isSiteOnlyTitle(normalized, pageUrl)) {
+      siteFallback ||= { title: normalized, sourceLabel };
+      continue;
+    }
+
+    return { title: normalized, sourceLabel };
   }
 
-  return { title: '未命名页面', sourceLabel: '回退标题' };
+  return siteFallback || { title: '未命名页面', sourceLabel: '回退标题' };
 };
 
 const normalizeComparableHostname = (hostname) => hostname.toLowerCase().replace(/^www\./, '');
@@ -1130,7 +1198,12 @@ const retryLastCopy = async () => {
   if (retryCopyButton) {
     retryCopyButton.hidden = true;
   }
-  await copyPreparedText(lastCopyText, lastSuccessStatus);
+  const copied = await copyPreparedText(lastCopyText, lastSuccessStatus);
+  await showPageFeedback(
+    lastCopyTabId,
+    copied ? '链接文本已复制' : '链接文本复制失败',
+    copied ? 'success' : 'error'
+  );
 };
 
 const copyMarkdownLink = async (settings = currentSettings) => {
@@ -1148,9 +1221,10 @@ const copyMarkdownLink = async (settings = currentSettings) => {
     }
 
     const pageTitleSnapshot = await getPageTitleSnapshot(tab.id);
+    lastCopyTabId = tab.id;
     const rawTitle = tab.title || '';
     const rawUrl = tab.url;
-    const preferredTitle = pickPreferredTitle(rawTitle, pageTitleSnapshot);
+    const preferredTitle = pickPreferredTitle(rawTitle, pageTitleSnapshot, rawUrl);
     const title = cleanTitle(preferredTitle.title, effectiveSettings);
     const preferredUrl = pickPreferredUrl(rawUrl, pageTitleSnapshot);
     const cleanLink = cleanUrlWithDetails(preferredUrl.url, effectiveSettings);
@@ -1170,7 +1244,12 @@ const copyMarkdownLink = async (settings = currentSettings) => {
     lastSuccessStatus =
       urlProcessing.count > 0 ? `已复制 · 清理 ${urlProcessing.count} 项` : '已复制链接文本';
     showCopyResult(outputSnippet, preferredTitle.sourceLabel, urlProcessing.summary);
-    await copyPreparedText(outputSnippet, lastSuccessStatus);
+    const copied = await copyPreparedText(outputSnippet, lastSuccessStatus);
+    await showPageFeedback(
+      tab.id,
+      copied ? '链接文本已复制' : '链接文本复制失败',
+      copied ? 'success' : 'error'
+    );
   } catch (error) {
     console.error('Failed to copy link text', error);
     setStatus('复制失败，请稍后重试', 'error');

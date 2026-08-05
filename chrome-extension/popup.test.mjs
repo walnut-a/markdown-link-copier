@@ -5,6 +5,8 @@ import path from 'node:path';
 
 const popupPath = path.resolve('chrome-extension/popup.js');
 const popupSource = await fs.readFile(popupPath, 'utf8');
+const feedbackSource = await fs.readFile(path.resolve('chrome-extension/page-feedback.js'), 'utf8');
+const feedbackModuleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(feedbackSource)}`;
 const popupHtml = await fs.readFile(path.resolve('chrome-extension/popup.html'), 'utf8');
 const optionsHtml = await fs.readFile(path.resolve('chrome-extension/options.html'), 'utf8');
 const manifest = JSON.parse(await fs.readFile(path.resolve('chrome-extension/manifest.json'), 'utf8'));
@@ -12,6 +14,7 @@ const clipboardWrites = [];
 const consoleWarnings = [];
 const consoleErrors = [];
 const createdTabs = [];
+const pageFeedbacks = [];
 const statusElement = { textContent: '', dataset: {} };
 const titleSourceElement = { textContent: '', hidden: true };
 const cleanupSummaryElement = { textContent: '', hidden: true };
@@ -37,6 +40,8 @@ let sourceDocumentTitle = '';
 const sourceSelectorMatches = new Map();
 const sourceSelectorLists = new Map();
 let pageSourceResponse = null;
+let fetchCalls = 0;
+let translatedPage = false;
 let clipboardWriteError = null;
 let execCommandSuccessful = true;
 
@@ -60,6 +65,12 @@ Object.defineProperty(globalThis, 'document', {
     body: {
       appendChild: () => {},
       removeChild: () => {}
+    },
+    documentElement: {
+      classList: {
+        contains: (name) =>
+          translatedPage && (name === 'translated-ltr' || name === 'translated-rtl')
+      }
     },
     execCommand: () => execCommandSuccessful,
     querySelector: (selector) => pageSelectorMatches.get(selector) || null,
@@ -87,6 +98,20 @@ Object.defineProperty(globalThis, 'chrome', {
     },
     scripting: {
       executeScript: async (options) => {
+        if (
+          Array.isArray(options.args) &&
+          options.args.length === 2 &&
+          (options.args[1] === 'success' || options.args[1] === 'error')
+        ) {
+          pageFeedbacks.push({
+            target: options.target,
+            message: options.args[0],
+            state: options.args[1],
+            func: options.func
+          });
+          return [{ result: true }];
+        }
+
         if (executeScriptError) {
           throw executeScriptError;
         }
@@ -127,6 +152,7 @@ Object.defineProperty(globalThis, 'location', {
 
 Object.defineProperty(globalThis, 'fetch', {
   value: async () => {
+    fetchCalls += 1;
     if (!pageSourceResponse) {
       throw new Error('Page source is unavailable');
     }
@@ -153,7 +179,10 @@ Object.defineProperty(globalThis, 'DOMParser', {
 
 const popupModule = await import(
   `data:text/javascript;charset=utf-8,${encodeURIComponent(
-    `${popupSource}\nexport { cleanTitle, cleanUrl, DEFAULT_SETTINGS, copyMarkdownLink, retryLastCopy, migrateSettings, getOutputPresetId, parseImportedSettings, serializeSettings };`
+    `${popupSource.replace(
+      "'./page-feedback.js'",
+      JSON.stringify(feedbackModuleUrl)
+    )}\nexport { cleanTitle, cleanUrl, DEFAULT_SETTINGS, copyMarkdownLink, retryLastCopy, migrateSettings, getOutputPresetId, parseImportedSettings, serializeSettings };`
   )}`
 );
 
@@ -174,6 +203,7 @@ const resetBrowserState = () => {
   consoleWarnings.length = 0;
   consoleErrors.length = 0;
   createdTabs.length = 0;
+  pageFeedbacks.length = 0;
   statusElement.textContent = '';
   statusElement.dataset.state = '';
   titleSourceElement.textContent = '';
@@ -195,6 +225,8 @@ const resetBrowserState = () => {
   sourceSelectorMatches.clear();
   sourceSelectorLists.clear();
   pageSourceResponse = null;
+  fetchCalls = 0;
+  translatedPage = false;
   clipboardWriteError = null;
   execCommandSuccessful = true;
 };
@@ -257,6 +289,20 @@ test('prefers page metadata when the tab title includes extra site text', async 
   assert.equal(resultPanelElement.hidden, false);
   assert.equal(statusElement.dataset.state, 'success');
   assert.equal(statusElement.textContent, '已复制 · 清理 1 项');
+  const feedback = pageFeedbacks.at(-1);
+  assert.deepEqual(
+    {
+      target: feedback?.target,
+      message: feedback?.message,
+      state: feedback?.state
+    },
+    {
+      target: { tabId: 1 },
+      message: '链接文本已复制',
+      state: 'success'
+    }
+  );
+  assert.equal(typeof feedback?.func, 'function');
 });
 
 test('falls back to the tab title when page metadata cannot be read', async () => {
@@ -330,6 +376,7 @@ test('prefers an article h2 over a site-wide h1 when metadata is missing', async
     clipboardWrites.at(-1),
     '[Control the ideas, not the code](https://antirez.com/news/169)'
   );
+  assert.equal(fetchCalls, 0);
 });
 
 test('prefers the original source heading when the visible page has been translated', async () => {
@@ -342,6 +389,7 @@ test('prefers the original source heading when the visible page has been transla
     }
   ];
   pageDocumentTitle = '控制思想，而不是代码 - <antirez>';
+  translatedPage = true;
   pageSelectorMatches.set('article h1, article h2, main h1, main h2', {
     textContent: '控制思想，而不是代码'
   });
@@ -364,6 +412,7 @@ test('prefers the original source heading when the visible page has been transla
     clipboardWrites.at(-1),
     '[Control the ideas, not the code](https://antirez.com/news/169)'
   );
+  assert.equal(fetchCalls, 1);
 });
 
 test('uses a JSON-LD headline before a generic document title', async () => {
@@ -417,6 +466,44 @@ test('uses meta name title when social metadata is missing', async () => {
   assert.equal(titleSourceElement.textContent, '标题来源：页面元数据');
 });
 
+test('does not treat a site-only YouTube title as the video title', async () => {
+  resetBrowserState();
+  activeTabs = [
+    {
+      id: 13,
+      title: 'YouTube',
+      url: 'https://www.youtube.com/watch?v=wIfsFvmQtvc&t=609s'
+    }
+  ];
+  pageDocumentTitle = 'YouTube';
+  pageSelectorMatches.set('meta[property="og:title"]', {
+    getAttribute: () => 'YouTube'
+  });
+  sourceDocumentTitle =
+    '別以為它只是軌跡球！用一個月後我懂它為什麼爆紅，一次整合軌跡球、快捷鍵、剪片控制器！feat.Keychron Nape Pro - YouTube';
+  sourceSelectorMatches.set('meta[property="og:title"]', {
+    getAttribute: () =>
+      '別以為它只是軌跡球！用一個月後我懂它為什麼爆紅，一次整合軌跡球、快捷鍵、剪片控制器！feat.Keychron Nape Pro'
+  });
+  sourceSelectorMatches.set('link[rel="canonical"]', {
+    getAttribute: () => 'https://www.youtube.com/watch?v=wIfsFvmQtvc'
+  });
+  pageSourceResponse = {
+    ok: true,
+    headers: { get: () => 'text/html; charset=utf-8' },
+    text: async () => '<html></html>'
+  };
+  executeScriptImplementation = ({ func }) => func();
+
+  await copyMarkdownLink(DEFAULT_SETTINGS);
+
+  assert.equal(
+    clipboardWrites.at(-1),
+    '[別以為它只是軌跡球！用一個月後我懂它為什麼爆紅，一次整合軌跡球、快捷鍵、剪片控制器！feat.Keychron Nape Pro](https://www.youtube.com/watch?v=wIfsFvmQtvc)'
+  );
+  assert.equal(titleSourceElement.textContent, '标题来源：原始源码 Open Graph');
+});
+
 test('uses the canonical URL before cleaning tracking parameters', async () => {
   resetBrowserState();
   activeTabs = [
@@ -464,6 +551,8 @@ test('keeps the generated result visible and supports retry when clipboard writi
   assert.equal(statusElement.dataset.state, 'error');
   assert.equal(statusElement.textContent, '自动复制失败，请手动复制');
   assert.equal(consoleErrors.length, 1);
+  assert.equal(pageFeedbacks.at(-1)?.message, '链接文本复制失败');
+  assert.equal(pageFeedbacks.at(-1)?.state, 'error');
 
   clipboardWriteError = null;
   execCommandSuccessful = true;
@@ -473,6 +562,8 @@ test('keeps the generated result visible and supports retry when clipboard writi
   assert.equal(retryCopyElement.hidden, true);
   assert.equal(statusElement.dataset.state, 'success');
   assert.equal(statusElement.textContent, '已复制链接文本');
+  assert.equal(pageFeedbacks.at(-1)?.message, '链接文本已复制');
+  assert.equal(pageFeedbacks.at(-1)?.state, 'success');
 });
 
 test('ignores canonical URLs that point to another site', async () => {
@@ -655,9 +746,14 @@ test('renders copied text with a configurable output template', async () => {
   );
 });
 
-test('declares a discoverable action shortcut without the broad tabs permission', () => {
+test('declares both copy shortcuts without the broad tabs permission', () => {
   assert.equal(manifest.permissions.includes('tabs'), false);
   assert.equal(manifest.commands._execute_action.description, '复制当前页面链接文本');
+  assert.equal(manifest.commands['copy-pure-url'].description, '复制纯链接（移除所有参数）');
+  assert.deepEqual(manifest.background, {
+    service_worker: 'background.js',
+    type: 'module'
+  });
 });
 
 test('includes result details, retry, and shortcut settings controls in the popup', () => {

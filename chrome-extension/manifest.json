@@ -2,12 +2,19 @@
   "manifest_version": 3,
   "name": "Markdown Link Copier",
   "description": "Cleans the current tab URL and copies it as formatted text to the clipboard.",
-  "version": "1.4.0",
+  "version": "1.5.1",
   "permissions": ["activeTab", "scripting", "clipboardWrite", "storage"],
   "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "commands": {
     "_execute_action": {
       "description": "复制当前页面链接文本"
+    },
+    "copy-pure-url": {
+      "description": "复制纯链接（移除所有参数）"
     }
   },
   "action": {
