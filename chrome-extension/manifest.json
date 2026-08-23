@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Markdown Link Copier",
   "description": "Cleans the current tab URL and copies it as formatted text to the clipboard.",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "permissions": ["activeTab", "scripting", "clipboardWrite", "storage"],
   "options_page": "options.html",
   "background": {

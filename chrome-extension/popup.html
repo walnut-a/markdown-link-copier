@@ -7,7 +7,13 @@
   </head>
   <body data-page="popup">
     <main class="popup-shell">
-      <h1>复制链接文本</h1>
+      <header class="popup-header">
+        <img class="app-icon" src="icons/icon32.png" alt="" width="30" height="30">
+        <div class="popup-heading">
+          <h1>复制链接文本</h1>
+          <span class="product-name">Markdown Link Copier</span>
+        </div>
+      </header>
       <div class="status-row">
         <p id="status" data-state="loading" role="status" aria-live="polite">正在准备...</p>
         <button id="retry-copy" class="retry-button" type="button" hidden>再次复制</button>
@@ -27,8 +33,20 @@
         ></textarea>
       </section>
       <div class="popup-actions">
-        <button id="open-settings" class="secondary-button" type="button">设置</button>
-        <button id="open-shortcuts" class="secondary-button" type="button">快捷键</button>
+        <button id="open-settings" class="secondary-button" type="button">
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <circle cx="10" cy="10" r="2.6"></circle>
+            <path d="M10 2.6v2M10 15.4v2M17.4 10h-2M4.6 10h-2M15.2 4.8l-1.4 1.4M6.2 13.8l-1.4 1.4M15.2 15.2l-1.4-1.4M6.2 6.2 4.8 4.8"></path>
+          </svg>
+          <span>设置</span>
+        </button>
+        <button id="open-shortcuts" class="secondary-button" type="button">
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <rect x="2.5" y="4.5" width="15" height="11" rx="2"></rect>
+            <path d="M5.5 8h.01M8.5 8h.01M11.5 8h.01M14.5 8h.01M6.5 11h.01M9.5 11h.01M12.5 11h.01M7 13.5h6"></path>
+          </svg>
+          <span>快捷键</span>
+        </button>
       </div>
     </main>
     <script src="popup.js" type="module"></script>

@@ -1,5 +1,3 @@
-import { showPageFeedback } from './page-feedback.js';
-
 const DEFAULT_TRACKING_PARAMS = [
   'utm_source',
   'utm_medium',
@@ -130,7 +128,6 @@ const openSettingsButton = document.getElementById('open-settings');
 const openShortcutsButton = document.getElementById('open-shortcuts');
 let lastCopyText = '';
 let lastSuccessStatus = '已复制链接文本';
-let lastCopyTabId;
 
 const setStatus = (message, state = 'neutral') => {
   if (statusEl) {
@@ -1198,12 +1195,7 @@ const retryLastCopy = async () => {
   if (retryCopyButton) {
     retryCopyButton.hidden = true;
   }
-  const copied = await copyPreparedText(lastCopyText, lastSuccessStatus);
-  await showPageFeedback(
-    lastCopyTabId,
-    copied ? '链接文本已复制' : '链接文本复制失败',
-    copied ? 'success' : 'error'
-  );
+  await copyPreparedText(lastCopyText, lastSuccessStatus);
 };
 
 const copyMarkdownLink = async (settings = currentSettings) => {
@@ -1221,7 +1213,6 @@ const copyMarkdownLink = async (settings = currentSettings) => {
     }
 
     const pageTitleSnapshot = await getPageTitleSnapshot(tab.id);
-    lastCopyTabId = tab.id;
     const rawTitle = tab.title || '';
     const rawUrl = tab.url;
     const preferredTitle = pickPreferredTitle(rawTitle, pageTitleSnapshot, rawUrl);
@@ -1244,12 +1235,7 @@ const copyMarkdownLink = async (settings = currentSettings) => {
     lastSuccessStatus =
       urlProcessing.count > 0 ? `已复制 · 清理 ${urlProcessing.count} 项` : '已复制链接文本';
     showCopyResult(outputSnippet, preferredTitle.sourceLabel, urlProcessing.summary);
-    const copied = await copyPreparedText(outputSnippet, lastSuccessStatus);
-    await showPageFeedback(
-      tab.id,
-      copied ? '链接文本已复制' : '链接文本复制失败',
-      copied ? 'success' : 'error'
-    );
+    await copyPreparedText(outputSnippet, lastSuccessStatus);
   } catch (error) {
     console.error('Failed to copy link text', error);
     setStatus('复制失败，请稍后重试', 'error');

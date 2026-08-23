@@ -5,8 +5,6 @@ import path from 'node:path';
 
 const popupPath = path.resolve('chrome-extension/popup.js');
 const popupSource = await fs.readFile(popupPath, 'utf8');
-const feedbackSource = await fs.readFile(path.resolve('chrome-extension/page-feedback.js'), 'utf8');
-const feedbackModuleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(feedbackSource)}`;
 const popupHtml = await fs.readFile(path.resolve('chrome-extension/popup.html'), 'utf8');
 const optionsHtml = await fs.readFile(path.resolve('chrome-extension/options.html'), 'utf8');
 const manifest = JSON.parse(await fs.readFile(path.resolve('chrome-extension/manifest.json'), 'utf8'));
@@ -179,10 +177,7 @@ Object.defineProperty(globalThis, 'DOMParser', {
 
 const popupModule = await import(
   `data:text/javascript;charset=utf-8,${encodeURIComponent(
-    `${popupSource.replace(
-      "'./page-feedback.js'",
-      JSON.stringify(feedbackModuleUrl)
-    )}\nexport { cleanTitle, cleanUrl, DEFAULT_SETTINGS, copyMarkdownLink, retryLastCopy, migrateSettings, getOutputPresetId, parseImportedSettings, serializeSettings };`
+    `${popupSource}\nexport { cleanTitle, cleanUrl, DEFAULT_SETTINGS, copyMarkdownLink, retryLastCopy, migrateSettings, getOutputPresetId, parseImportedSettings, serializeSettings };`
   )}`
 );
 
@@ -253,7 +248,7 @@ test('collapses whitespace in copied titles', () => {
   assert.equal(cleanTitle('  Shipping\nMarkdown\tlinks  ', DEFAULT_SETTINGS), 'Shipping Markdown links');
 });
 
-test('prefers page metadata when the tab title includes extra site text', async () => {
+test('prefers page metadata and keeps copy success feedback inside the popup', async () => {
   resetBrowserState();
   activeTabs = [
     {
@@ -289,20 +284,7 @@ test('prefers page metadata when the tab title includes extra site text', async 
   assert.equal(resultPanelElement.hidden, false);
   assert.equal(statusElement.dataset.state, 'success');
   assert.equal(statusElement.textContent, '已复制 · 清理 1 项');
-  const feedback = pageFeedbacks.at(-1);
-  assert.deepEqual(
-    {
-      target: feedback?.target,
-      message: feedback?.message,
-      state: feedback?.state
-    },
-    {
-      target: { tabId: 1 },
-      message: '链接文本已复制',
-      state: 'success'
-    }
-  );
-  assert.equal(typeof feedback?.func, 'function');
+  assert.equal(pageFeedbacks.length, 0);
 });
 
 test('falls back to the tab title when page metadata cannot be read', async () => {
@@ -529,7 +511,7 @@ test('uses the canonical URL before cleaning tracking parameters', async () => {
   assert.equal(statusElement.textContent, '已复制 · 清理 1 项');
 });
 
-test('keeps the generated result visible and supports retry when clipboard writing fails', async () => {
+test('keeps failure and retry feedback inside the popup', async () => {
   resetBrowserState();
   activeTabs = [
     {
@@ -551,8 +533,7 @@ test('keeps the generated result visible and supports retry when clipboard writi
   assert.equal(statusElement.dataset.state, 'error');
   assert.equal(statusElement.textContent, '自动复制失败，请手动复制');
   assert.equal(consoleErrors.length, 1);
-  assert.equal(pageFeedbacks.at(-1)?.message, '链接文本复制失败');
-  assert.equal(pageFeedbacks.at(-1)?.state, 'error');
+  assert.equal(pageFeedbacks.length, 0);
 
   clipboardWriteError = null;
   execCommandSuccessful = true;
@@ -562,8 +543,7 @@ test('keeps the generated result visible and supports retry when clipboard writi
   assert.equal(retryCopyElement.hidden, true);
   assert.equal(statusElement.dataset.state, 'success');
   assert.equal(statusElement.textContent, '已复制链接文本');
-  assert.equal(pageFeedbacks.at(-1)?.message, '链接文本已复制');
-  assert.equal(pageFeedbacks.at(-1)?.state, 'success');
+  assert.equal(pageFeedbacks.length, 0);
 });
 
 test('ignores canonical URLs that point to another site', async () => {
