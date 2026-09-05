@@ -1,3 +1,10 @@
+import {
+  createBrowserI18n,
+  createI18n,
+  localizeDocument,
+  normalizeUiLanguage
+} from './i18n.js';
+
 const DEFAULT_TRACKING_PARAMS = [
   'utm_source',
   'utm_medium',
@@ -79,7 +86,7 @@ const OUTPUT_PRESETS = [
   { id: 'title-url', template: '{{title}}\n{{url}}' },
   { id: 'url', template: '{{url}}' }
 ];
-const SETTINGS_VERSION = 2;
+const SETTINGS_VERSION = 3;
 const LEGACY_RISKY_TRACKING_PARAMS = [
   'ref',
   'ref_url',
@@ -96,6 +103,7 @@ const LEGACY_RISKY_TRACKING_PREFIXES = ['ref_', 'share_'];
 
 const DEFAULT_SETTINGS = {
   settingsVersion: SETTINGS_VERSION,
+  uiLanguage: 'auto',
   stripTitleSuffix: true,
   titleSeparators: [' - ', ' – ', ' — ', ' | ', ' ｜ ', ' · ', ' • ', ' _ ', ' / '],
   titleSuffixKeywords: [],
@@ -112,6 +120,7 @@ const cleanupSummaryEl = document.getElementById('cleanup-summary');
 const resultPreviewEl = document.getElementById('result-preview');
 const retryCopyButton = document.getElementById('retry-copy');
 const settingsStatusEl = document.getElementById('settings-status');
+const uiLanguageEl = document.getElementById('ui-language');
 const stripTitleToggle = document.getElementById('strip-title-suffix');
 const separatorsEl = document.getElementById('title-separators');
 const keywordsEl = document.getElementById('title-suffix-keywords');
@@ -126,8 +135,16 @@ const importSettingsFileEl = document.getElementById('import-settings-file');
 const resetSettingsButton = document.getElementById('reset-settings');
 const openSettingsButton = document.getElementById('open-settings');
 const openShortcutsButton = document.getElementById('open-shortcuts');
+let currentI18n = createBrowserI18n();
+const t = (key, replacements) => currentI18n.t(key, replacements);
+const applyUiLanguage = async (preference) => {
+  currentI18n = await createI18n(preference);
+  localizeDocument(document, currentI18n);
+  return currentI18n;
+};
+
 let lastCopyText = '';
-let lastSuccessStatus = '已复制链接文本';
+let lastSuccessStatus = t('copiedLinkText');
 
 const setStatus = (message, state = 'neutral') => {
   if (statusEl) {
@@ -168,7 +185,7 @@ const showCopyResult = (text, titleSourceLabel, cleanupSummary = '') => {
     resultPanelEl.hidden = false;
   }
   if (titleSourceEl) {
-    titleSourceEl.textContent = `标题来源：${titleSourceLabel}`;
+    titleSourceEl.textContent = t('titleSource', { source: titleSourceLabel });
     titleSourceEl.hidden = false;
   }
   if (cleanupSummaryEl) {
@@ -228,17 +245,17 @@ const getOutputPresetId = (template) =>
 
 const serializeSettings = (settings) => JSON.stringify(normalizeSettings(settings), null, 2);
 
-const parseImportedSettings = (text) => {
+const parseImportedSettings = (text, translate = t) => {
   let parsed;
 
   try {
     parsed = JSON.parse(text);
   } catch (error) {
-    throw new Error('设置文件不是有效的 JSON');
+    throw new Error(translate('invalidSettingsJson'));
   }
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('设置文件必须是 JSON 对象');
+    throw new Error(translate('settingsMustBeObject'));
   }
 
   return normalizeSettings(migrateSettings(parsed));
@@ -279,6 +296,7 @@ const migrateSettings = (settings = {}) => {
 
 const normalizeSettings = (settings = {}) => ({
   settingsVersion: SETTINGS_VERSION,
+  uiLanguage: normalizeUiLanguage(settings.uiLanguage),
   stripTitleSuffix:
     typeof settings.stripTitleSuffix === 'boolean'
       ? settings.stripTitleSuffix
@@ -334,6 +352,9 @@ const saveSettings = async (settings) => {
 };
 
 const renderSettings = (settings) => {
+  if (uiLanguageEl) {
+    uiLanguageEl.value = settings.uiLanguage;
+  }
   if (stripTitleToggle) {
     stripTitleToggle.checked = settings.stripTitleSuffix;
   }
@@ -361,6 +382,7 @@ const renderSettings = (settings) => {
 };
 
 const collectSettingsFromUI = () => ({
+  uiLanguage: normalizeUiLanguage(uiLanguageEl?.value),
   stripTitleSuffix: stripTitleToggle?.checked ?? DEFAULT_SETTINGS.stripTitleSuffix,
   titleSeparators: separatorsEl ? parseLines(separatorsEl.value) : DEFAULT_SETTINGS.titleSeparators,
   titleSuffixKeywords: keywordsEl ? parseLines(keywordsEl.value) : DEFAULT_SETTINGS.titleSuffixKeywords,
@@ -377,6 +399,7 @@ const collectSettingsFromUI = () => ({
 const bindSettingsEvents = () => {
   if (
     !stripTitleToggle ||
+    !uiLanguageEl ||
     !separatorsEl ||
     !keywordsEl ||
     !trackingParamsEl ||
@@ -388,16 +411,24 @@ const bindSettingsEvents = () => {
     return;
   }
 
-  const handleSave = async () => {
+  const handleSave = async ({ updateLanguage = false } = {}) => {
     try {
       const nextSettings = collectSettingsFromUI();
       await saveSettings(nextSettings);
-      setSettingsStatus('设置已保存');
+      if (updateLanguage) {
+        await applyUiLanguage(nextSettings.uiLanguage);
+        renderSettings(nextSettings);
+      }
+      setSettingsStatus(t('settingsSaved'));
+      return nextSettings;
     } catch (error) {
       console.warn('Unable to save settings.', error);
-      setSettingsStatus('设置格式有误，请检查 JSON');
+      setSettingsStatus(t('settingsInvalid'));
+      return null;
     }
   };
+
+  uiLanguageEl.addEventListener('change', () => handleSave({ updateLanguage: true }));
 
   [
     stripTitleToggle,
@@ -436,7 +467,7 @@ const bindSettingsEvents = () => {
       anchor.download = 'markdown-link-copier-settings.json';
       anchor.click();
       URL.revokeObjectURL(downloadUrl);
-      setSettingsStatus('设置已导出');
+      setSettingsStatus(t('settingsExported'));
     });
   }
 
@@ -451,11 +482,12 @@ const bindSettingsEvents = () => {
       try {
         const imported = parseImportedSettings(await file.text());
         await saveSettings(imported);
+        await applyUiLanguage(imported.uiLanguage);
         renderSettings(imported);
-        setSettingsStatus('设置已导入');
+        setSettingsStatus(t('settingsImported'));
       } catch (error) {
         console.warn('Unable to import settings.', error);
-        setSettingsStatus(error.message || '设置导入失败');
+        setSettingsStatus(error.message || t('settingsImportFailed'));
       } finally {
         importSettingsFileEl.value = '';
       }
@@ -464,13 +496,14 @@ const bindSettingsEvents = () => {
 
   if (resetSettingsButton) {
     resetSettingsButton.addEventListener('click', async () => {
-      if (!confirm('确定恢复全部默认设置吗？')) {
+      if (!confirm(t('confirmReset'))) {
         return;
       }
 
       await saveSettings(DEFAULT_SETTINGS);
+      await applyUiLanguage(DEFAULT_SETTINGS.uiLanguage);
       renderSettings(DEFAULT_SETTINGS);
-      setSettingsStatus('已恢复默认设置');
+      setSettingsStatus(t('settingsReset'));
     });
   }
 };
@@ -499,7 +532,7 @@ const getActiveTab = async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
   if (!tab || tab.id === undefined) {
-    throw new Error('无法获取当前页面信息');
+    throw new Error(t('activePageUnavailable'));
   }
 
   return tab;
@@ -743,23 +776,23 @@ const getPageTitleSnapshot = async (tabId) => {
 
 const pickPreferredTitle = (tabTitle, pageTitleSnapshot, pageUrl) => {
   const candidates = [
-    [pageTitleSnapshot?.sourceArticleTitle, '原始源码文章标题'],
-    [pageTitleSnapshot?.sourceJsonLdTitle, '原始源码 JSON-LD'],
-    [pageTitleSnapshot?.sourceOgTitle, '原始源码 Open Graph'],
-    [pageTitleSnapshot?.sourceTwitterTitle, '原始源码 Twitter Card'],
-    [pageTitleSnapshot?.sourceMetaTitle, '原始源码页面元数据'],
-    [pageTitleSnapshot?.sourceArticleHeadingTitle, '原始源码文章标题'],
-    [pageTitleSnapshot?.sourceDocumentTitle, '原始源码页面标题'],
-    [pageTitleSnapshot?.sourceH1Title, '原始源码 H1'],
-    [pageTitleSnapshot?.articleTitle, '文章标题'],
+    [pageTitleSnapshot?.sourceArticleTitle, t('sourceOriginalArticleTitle')],
+    [pageTitleSnapshot?.sourceJsonLdTitle, t('sourceOriginalJsonLd')],
+    [pageTitleSnapshot?.sourceOgTitle, t('sourceOriginalOpenGraph')],
+    [pageTitleSnapshot?.sourceTwitterTitle, t('sourceOriginalTwitter')],
+    [pageTitleSnapshot?.sourceMetaTitle, t('sourceOriginalMetadata')],
+    [pageTitleSnapshot?.sourceArticleHeadingTitle, t('sourceOriginalArticleTitle')],
+    [pageTitleSnapshot?.sourceDocumentTitle, t('sourceOriginalPageTitle')],
+    [pageTitleSnapshot?.sourceH1Title, t('sourceOriginalH1')],
+    [pageTitleSnapshot?.articleTitle, t('sourceArticleTitle')],
     [pageTitleSnapshot?.jsonLdTitle, 'JSON-LD'],
     [pageTitleSnapshot?.ogTitle, 'Open Graph'],
     [pageTitleSnapshot?.twitterTitle, 'Twitter Card'],
-    [pageTitleSnapshot?.metaTitle, '页面元数据'],
-    [pageTitleSnapshot?.articleHeadingTitle, '文章标题'],
-    [pageTitleSnapshot?.h1Title, '页面 H1'],
-    [pageTitleSnapshot?.documentTitle, '页面标题'],
-    [tabTitle, '标签页标题']
+    [pageTitleSnapshot?.metaTitle, t('sourcePageMetadata')],
+    [pageTitleSnapshot?.articleHeadingTitle, t('sourceArticleTitle')],
+    [pageTitleSnapshot?.h1Title, t('sourcePageH1')],
+    [pageTitleSnapshot?.documentTitle, t('sourcePageTitle')],
+    [tabTitle, t('sourceTabTitle')]
   ];
 
   let siteFallback = null;
@@ -778,7 +811,7 @@ const pickPreferredTitle = (tabTitle, pageTitleSnapshot, pageUrl) => {
     return { title: normalized, sourceLabel };
   }
 
-  return siteFallback || { title: '未命名页面', sourceLabel: '回退标题' };
+  return siteFallback || { title: t('untitledPage'), sourceLabel: t('sourceFallbackTitle') };
 };
 
 const normalizeComparableHostname = (hostname) => hostname.toLowerCase().replace(/^www\./, '');
@@ -1101,7 +1134,8 @@ const findKeywordCutIndex = (title, keywords, separators) => {
 };
 
 const cleanTitle = (rawTitle, settings) => {
-  const baseTitle = normalizeTitleCandidate(rawTitle || '未命名页面') || '未命名页面';
+  const untitledPage = t('untitledPage');
+  const baseTitle = normalizeTitleCandidate(rawTitle || untitledPage) || untitledPage;
   const effectiveSettings = settings || DEFAULT_SETTINGS;
 
   if (!effectiveSettings.stripTitleSuffix) {
@@ -1156,14 +1190,15 @@ const describeUrlProcessing = ({ usedCanonical, removedParams }) => {
   const details = [];
 
   if (usedCanonical) {
-    details.push('采用规范链接');
+    details.push(t('usedCanonical'));
   }
   if (removedParams.length > 0) {
-    details.push(`移除 ${removedParams.join('、')}`);
+    const separator = currentI18n.language === 'zh_CN' ? '、' : ', ';
+    details.push(t('removedParameters', { params: removedParams.join(separator) }));
   }
 
   return {
-    summary: details.length > 0 ? `链接处理：${details.join(' · ')}` : '',
+    summary: details.length > 0 ? t('urlProcessing', { details: details.join(' · ') }) : '',
     count: (usedCanonical ? 1 : 0) + removedParams.length
   };
 };
@@ -1181,7 +1216,7 @@ const copyPreparedText = async (text, successStatus) => {
     if (retryCopyButton) {
       retryCopyButton.hidden = false;
     }
-    setStatus('自动复制失败，请手动复制', 'error');
+    setStatus(t('autoCopyFailed'), 'error');
     return false;
   }
 };
@@ -1191,7 +1226,7 @@ const retryLastCopy = async () => {
     return;
   }
 
-  setStatus('正在再次复制...', 'loading');
+  setStatus(t('retryingCopy'), 'loading');
   if (retryCopyButton) {
     retryCopyButton.hidden = true;
   }
@@ -1199,16 +1234,16 @@ const retryLastCopy = async () => {
 };
 
 const copyMarkdownLink = async (settings = currentSettings) => {
-  setStatus('正在读取当前页面...', 'loading');
+  setStatus(t('readingCurrentPage'), 'loading');
   clearCopyResult();
   lastCopyText = '';
-  lastSuccessStatus = '已复制链接文本';
+  lastSuccessStatus = t('copiedLinkText');
 
   try {
     const effectiveSettings = normalizeSettings(settings);
     const tab = await getActiveTab();
     if (!tab.url) {
-      setStatus('无法获取当前页面信息', 'error');
+      setStatus(t('activePageUnavailable'), 'error');
       return;
     }
 
@@ -1233,18 +1268,23 @@ const copyMarkdownLink = async (settings = currentSettings) => {
 
     lastCopyText = outputSnippet;
     lastSuccessStatus =
-      urlProcessing.count > 0 ? `已复制 · 清理 ${urlProcessing.count} 项` : '已复制链接文本';
+      urlProcessing.count === 1
+        ? t('copiedCleanedItem')
+        : urlProcessing.count > 1
+        ? t('copiedCleanedItems', { count: urlProcessing.count })
+        : t('copiedLinkText');
     showCopyResult(outputSnippet, preferredTitle.sourceLabel, urlProcessing.summary);
     await copyPreparedText(outputSnippet, lastSuccessStatus);
   } catch (error) {
     console.error('Failed to copy link text', error);
-    setStatus('复制失败，请稍后重试', 'error');
+    setStatus(t('copyFailed'), 'error');
   }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
   (async () => {
     const settings = await loadSettings();
+    await applyUiLanguage(settings.uiLanguage);
     renderSettings(settings);
     bindSettingsEvents();
     bindPopupEvents();

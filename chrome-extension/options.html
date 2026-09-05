@@ -1,65 +1,75 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>Markdown Link Copier 设置</title>
+    <title data-i18n="optionsPageTitle">Markdown Link Copier Settings</title>
     <link rel="stylesheet" href="popup.css">
   </head>
   <body data-page="options">
     <main>
-      <h1>处理规则设置</h1>
-      <section class="settings" aria-label="处理规则设置">
+      <h1 data-i18n="settingsHeading">Processing rules</h1>
+      <section class="settings" aria-label="Processing rule settings" data-i18n-aria-label="settingsAria">
         <div class="settings-body">
-          <p class="section-title">标题</p>
+          <p class="section-title" data-i18n="sectionLanguage">Language</p>
+          <label class="field">
+            <span data-i18n="uiLanguage">Display language</span>
+            <select id="ui-language">
+              <option value="auto" data-i18n="languageAuto">Follow browser</option>
+              <option value="zh_CN" data-i18n="languageChinese">中文</option>
+              <option value="en" data-i18n="languageEnglish">English</option>
+            </select>
+            <span class="help" data-i18n="languageHelp">Applies to the extension UI and feedback. Chrome's shortcuts page always follows the browser language.</span>
+          </label>
+          <p class="section-title" data-i18n="sectionTitle">Title</p>
           <label class="checkbox">
             <input type="checkbox" id="strip-title-suffix">
-            去掉标题后缀（站点 slogan）
+            <span data-i18n="stripTitleSuffix">Remove title suffixes (site slogans)</span>
           </label>
           <label class="field">
-            分隔符（每行一个）
+            <span data-i18n="titleSeparators">Separators (one per line)</span>
             <textarea id="title-separators" rows="4"></textarea>
-            <span class="help">规则：命中关键词时，会从关键词前最近的分隔符截断。</span>
-            <span class="help">示例：文章标题 - 专栏 | 站点名 -> 文章标题 - 专栏</span>
+            <span class="help" data-i18n="titleSeparatorsRule">Rule: when a keyword matches, cut from the nearest preceding separator.</span>
+            <span class="help" data-i18n="titleSeparatorsExample">Example: Article - Column | Site -> Article - Column</span>
           </label>
           <label class="field">
-            屏蔽关键词（每行一个，可选）
+            <span data-i18n="titleKeywords">Blocked keywords (one per line, optional)</span>
             <textarea id="title-suffix-keywords" rows="3"></textarea>
-            <span class="help">规则：关键词在标题中出现即生效；若在结尾则直接去除。</span>
-            <span class="help">示例：文章标题 | 站点名 -> 文章标题</span>
+            <span class="help" data-i18n="titleKeywordsRule">Rule: applies whenever the keyword appears; removes it directly when it is at the end.</span>
+            <span class="help" data-i18n="titleKeywordsExample">Example: Article | Site -> Article</span>
           </label>
-          <p class="section-title">链接</p>
+          <p class="section-title" data-i18n="sectionLink">Link</p>
           <label class="field">
-            删除参数（每行一个）
+            <span data-i18n="trackingParams">Remove parameters (one per line)</span>
             <textarea id="tracking-params" rows="6"></textarea>
           </label>
           <label class="field">
-            删除参数前缀（每行一个）
+            <span data-i18n="trackingPrefixes">Remove parameter prefixes (one per line)</span>
             <textarea id="tracking-prefixes" rows="4"></textarea>
           </label>
           <label class="field">
-            条件参数组（JSON）
+            <span data-i18n="conditionalGroups">Conditional parameter groups (JSON)</span>
             <textarea id="conditional-tracking-groups" rows="7"></textarea>
-            <span class="help">markers 命中任意一个时，删除 remove 里的参数。</span>
+            <span class="help" data-i18n="conditionalGroupsHelp">When any marker matches, parameters in remove are deleted.</span>
           </label>
-          <p class="section-title">输出</p>
+          <p class="section-title" data-i18n="sectionOutput">Output</p>
           <label class="field">
-            输出预设
+            <span data-i18n="outputPreset">Output preset</span>
             <select id="output-preset">
-              <option value="markdown">Markdown 链接</option>
-              <option value="title-url">标题与链接分行</option>
-              <option value="url">仅链接</option>
-              <option value="custom">自定义模板</option>
+              <option value="markdown" data-i18n="presetMarkdown">Markdown link</option>
+              <option value="title-url" data-i18n="presetTitleUrl">Title and URL on separate lines</option>
+              <option value="url" data-i18n="presetUrl">URL only</option>
+              <option value="custom" data-i18n="presetCustom">Custom template</option>
             </select>
           </label>
           <label class="field">
-            输出模板
+            <span data-i18n="outputTemplate">Output template</span>
             <textarea id="output-template" rows="4"></textarea>
-            <span class="help">变量：title、url、rawTitle、rawUrl、hostname、markdownTitle、markdownUrl。</span>
+            <span class="help" data-i18n="outputTemplateHelp">Variables: title, url, rawTitle, rawUrl, hostname, markdownTitle, markdownUrl.</span>
           </label>
-          <div class="settings-actions" aria-label="设置备份与恢复">
-            <button id="export-settings" class="secondary-button" type="button">导出设置</button>
-            <button id="import-settings" class="secondary-button" type="button">导入设置</button>
-            <button id="reset-settings" class="secondary-button danger-button" type="button">恢复默认</button>
+          <div class="settings-actions" aria-label="Settings backup and restore" data-i18n-aria-label="settingsBackupAria">
+            <button id="export-settings" class="secondary-button" type="button" data-i18n="exportSettings">Export settings</button>
+            <button id="import-settings" class="secondary-button" type="button" data-i18n="importSettings">Import settings</button>
+            <button id="reset-settings" class="secondary-button danger-button" type="button" data-i18n="resetDefaults">Restore defaults</button>
             <input id="import-settings-file" type="file" accept="application/json,.json" hidden>
           </div>
           <p id="settings-status" class="hint" role="status" aria-live="polite"></p>

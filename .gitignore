@@ -5,7 +5,13 @@
 /.kiro/
 
 /assets/
-/css/
-/js/
-/index.html
+/css/*
+!/css/custom-theme.css
+/js/*
+!/js/main.js
 /dist/
+
+/.impeccable/mocks/
+/.impeccable/questions/
+/.impeccable/review/
+/.impeccable/surface-brief.md

@@ -6,10 +6,23 @@ import path from 'node:path';
 let commandListener;
 let activeTabs = [];
 let clipboardScriptResult = true;
+let uiLanguage = 'zh_CN';
 const scriptExecutions = [];
 
 Object.defineProperty(globalThis, 'chrome', {
   value: {
+    i18n: {
+      getUILanguage: () => 'zh-CN',
+      getMessage: () => ''
+    },
+    runtime: {
+      getURL: (resourcePath) => resourcePath
+    },
+    storage: {
+      sync: {
+        get: async () => ({ uiLanguage })
+      }
+    },
     commands: {
       onCommand: {
         addListener: (listener) => {
@@ -32,10 +45,26 @@ Object.defineProperty(globalThis, 'chrome', {
 
 const backgroundSource = await fs.readFile(path.resolve('chrome-extension/background.js'), 'utf8');
 const feedbackSource = await fs.readFile(path.resolve('chrome-extension/page-feedback.js'), 'utf8');
+const i18nSource = await fs.readFile(path.resolve('chrome-extension/i18n.js'), 'utf8');
 const feedbackModuleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(feedbackSource)}`;
+const i18nModuleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(i18nSource)}`;
+
+Object.defineProperty(globalThis, 'fetch', {
+  value: async (resourcePath) => ({
+    ok: true,
+    json: async () =>
+      JSON.parse(
+        await fs.readFile(path.resolve('chrome-extension', String(resourcePath)), 'utf8')
+      )
+  }),
+  configurable: true
+});
+
 const { COPY_PURE_URL_COMMAND, handleCommand, toPureUrl } = await import(
   `data:text/javascript;charset=utf-8,${encodeURIComponent(
-    backgroundSource.replace("'./page-feedback.js'", JSON.stringify(feedbackModuleUrl))
+    backgroundSource
+      .replace("'./page-feedback.js'", JSON.stringify(feedbackModuleUrl))
+      .replace("'./i18n.js'", JSON.stringify(i18nModuleUrl))
   )}`
 );
 
@@ -88,6 +117,19 @@ test('shows an error message when pure URL clipboard writing fails', async () =>
   assert.equal(copied, false);
   assert.deepEqual(scriptExecutions[1].target, { tabId: 24 });
   assert.deepEqual(scriptExecutions[1].args, ['纯链接复制失败', 'error']);
+});
+
+test('uses the manually selected English language for page feedback', async () => {
+  activeTabs = [{ id: 25, url: 'https://example.com/article?id=42' }];
+  clipboardScriptResult = true;
+  scriptExecutions.length = 0;
+  uiLanguage = 'en';
+
+  const copied = await handleCommand(COPY_PURE_URL_COMMAND);
+
+  assert.equal(copied, true);
+  assert.deepEqual(scriptExecutions[1].args, ['Clean URL copied', 'success']);
+  uiLanguage = 'zh_CN';
 });
 
 test('ignores unrelated commands and pages without a usable URL', async () => {

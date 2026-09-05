@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Markdown Link Copier",
-  "description": "Cleans the current tab URL and copies it as formatted text to the clipboard.",
-  "version": "1.5.2",
+  "name": "__MSG_extensionName__",
+  "description": "__MSG_extensionDescription__",
+  "version": "1.5.3",
+  "default_locale": "en",
   "permissions": ["activeTab", "scripting", "clipboardWrite", "storage"],
   "options_page": "options.html",
   "background": {
@@ -10,16 +11,14 @@
     "type": "module"
   },
   "commands": {
-    "_execute_action": {
-      "description": "复制当前页面链接文本"
-    },
+    "_execute_action": {},
     "copy-pure-url": {
-      "description": "复制纯链接（移除所有参数）"
+      "description": "__MSG_commandCopyPureUrl__"
     }
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Copy Link Text",
+    "default_title": "__MSG_actionTitle__",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png"

@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Copy accurate page titles and clean URLs as Markdown in one click. A tiny, private, open-source Chrome extension.">
+  <meta name="theme-color" content="#f5f9ff">
+  <meta property="og:title" content="Markdown Link Copier">
+  <meta property="og:description" content="Clean links. Accurate titles. One click.">
+  <meta property="og:type" content="website">
+  <title>Markdown Link Copier — Clean links in one click</title>
+  <link rel="icon" type="image/png" href="chrome-extension/icons/icon32.png">
+  <link rel="stylesheet" href="css/custom-theme.css">
+  <script src="js/main.js" defer></script>
+</head>
+<body>
+  <!--
+  THESIS: One click turns the current page into a trustworthy Markdown link, with every product claim placed beside evidence.
+  OWN-WORLD: Pale-blue daylight, ink typography, Chrome-blue actions, success green, thin rules, the real MD icon, and real extension UI.
+  STORY: Copy moment, cleanup logic, permission ledger, open-source proof, then install.
+  FIRST VIEWPORT: A short promise and single install action face a browser-to-popup transformation; a compact proof rail closes the frame.
+  FORM: Code-led open-source ledger, concept seed 676863ed.
+  FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+  -->
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="Markdown Link Copier home">
+      <img src="chrome-extension/icons/icon128.png" alt="" width="38" height="38">
+      <span>Markdown Link Copier</span>
+    </a>
+    <nav class="site-nav" aria-label="Primary navigation">
+      <a href="#how-it-works">How it works</a>
+      <a href="#privacy">Privacy</a>
+      <a href="https://github.com/walnut-a/markdown-link-copier">Source</a>
+    </nav>
+    <a class="header-install" href="https://chromewebstore.google.com/detail/markdown-link-copier/okdollbnpaenkphpigcahcaiddfainpn">Add to Chrome</a>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <h1 id="hero-title">Copy the page.<br>Keep the signal.</h1>
+        <p class="hero-summary">Accurate titles, clean URLs, and the format you need, copied from the current tab without manual cleanup.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="https://chromewebstore.google.com/detail/markdown-link-copier/okdollbnpaenkphpigcahcaiddfainpn">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.65 15l5-8.66A4 4 0 0 1 12 6h8.32A10 10 0 0 0 12 2Zm0 20a10 10 0 0 0 8.65-15h-10A4 4 0 0 1 12 14l-4.16 7.2A9.97 9.97 0 0 0 12 22Zm0-10a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
+            Add to Chrome
+          </a>
+          <a class="text-link" href="https://github.com/walnut-a/markdown-link-copier">View source</a>
+        </div>
+        <p class="hero-note">Free · Open source · No account</p>
+      </div>
+
+      <div class="product-stage" aria-label="A browser page and the Markdown Link Copier result">
+        <div class="orbit orbit-one" aria-hidden="true"></div>
+        <div class="orbit orbit-two" aria-hidden="true"></div>
+        <div class="browser-window">
+          <div class="browser-bar">
+            <span class="browser-dot"></span><span class="browser-dot"></span><span class="browser-dot"></span>
+            <div class="address-bar">antirez.com/news/169?utm_source=store&amp;utm_medium=screen</div>
+          </div>
+          <div class="article-ghost" aria-hidden="true">
+            <span class="ghost-kicker"></span><span class="ghost-title ghost-title-long"></span><span class="ghost-title"></span>
+            <span class="ghost-line"></span><span class="ghost-line"></span><span class="ghost-line ghost-line-short"></span>
+          </div>
+          <div class="extension-popover">
+            <div class="popover-heading">
+              <img src="chrome-extension/icons/icon128.png" alt="" width="42" height="42">
+              <div><strong>Copy Link Text</strong><span>Markdown Link Copier</span></div>
+            </div>
+            <div class="success-line"><span class="status-dot"></span>Copied · cleaned 2 items</div>
+            <div class="result-block">
+              <p><strong>Title source:</strong> Article title</p>
+              <p><strong>Link processing:</strong> Removed utm_source, utm_medium</p>
+              <code>[Control the ideas, not the code]<br>(https://antirez.com/news/169)</code>
+            </div>
+            <div class="popover-links"><span>Settings</span><span>Shortcuts</span></div>
+          </div>
+          <div class="clean-toast"><span class="status-dot" aria-hidden="true"></span>2 tracking parameters removed</div>
+        </div>
+      </div>
+
+      <dl class="proof-rail" aria-label="Product evidence">
+        <div><dt>44 KB</dt><dd>compressed package</dd></div>
+        <div><dt>MV3</dt><dd>modern Chrome platform</dd></div>
+        <div><dt>42</dt><dd>automated tests</dd></div>
+        <div><dt>No data</dt><dd>collected or uploaded</dd></div>
+      </dl>
+    </section>
+
+    <section class="transformation section" id="how-it-works" aria-labelledby="transform-title">
+      <div class="section-intro">
+        <h2 id="transform-title">The useful part of a link,<br>without the residue.</h2>
+        <p>Open the extension or use a shortcut. It finds a better title, keeps a safe canonical URL, removes known tracking parameters, and copies the result.</p>
+      </div>
+      <div class="transform-demo">
+        <div class="demo-row demo-source">
+          <span class="demo-label">EXAMPLE INPUT</span>
+          <code>https://example.com/article?<mark>utm_source=newsletter</mark>&amp;<mark>gclid=abc123</mark></code>
+        </div>
+        <div class="demo-flow" aria-hidden="true"><span></span><b>one click</b><span></span></div>
+        <div class="demo-row demo-result">
+          <span class="demo-label">EXAMPLE OUTPUT</span>
+          <code id="sample-output">[A precise article title](https://example.com/article)</code>
+          <button class="copy-sample" type="button" data-copy-target="sample-output">Copy sample</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="capabilities section" aria-labelledby="capabilities-title">
+      <div class="section-intro compact">
+        <h2 id="capabilities-title">Small surface.<br>Serious judgment.</h2>
+      </div>
+      <div class="capability-list">
+        <article><span class="cap-index">A</span><div><h3>Find the title that matters</h3><p>Checks structured data, article headings, Open Graph metadata, and safe fallbacks instead of blindly copying the tab title.</p></div></article>
+        <article><span class="cap-index">B</span><div><h3>Remove only known clutter</h3><p>Strips common tracking parameters while preserving query values that may change what the destination page does.</p></div></article>
+        <article><span class="cap-index">C</span><div><h3>Fit the way you write</h3><p>Use Markdown, title and URL, URL only, or a custom template. Advanced rules stay out of the one-click path.</p></div></article>
+        <article><span class="cap-index">D</span><div><h3>Show its work</h3><p>The popup exposes the copied value, title source, and cleanup summary so the result can be trusted before you paste.</p></div></article>
+      </div>
+    </section>
+
+    <section class="ledger section" id="privacy" aria-labelledby="ledger-title">
+      <div class="ledger-heading">
+        <h2 id="ledger-title">Nothing hidden<br>behind the button.</h2>
+        <p>Markdown Link Copier runs locally and reads the active page only when you invoke it. There is no account, remote service, analytics, advertising, or sale of browsing data.</p>
+        <a class="text-link" href="https://github.com/walnut-a/markdown-link-copier/blob/main/chrome-extension/README.md">Read the implementation</a>
+      </div>
+      <div class="permission-table" role="table" aria-label="Chrome permission explanations">
+        <div class="permission-row permission-head" role="row"><span role="columnheader">Permission</span><span role="columnheader">Why it exists</span><span role="columnheader">When used</span></div>
+        <div class="permission-row" role="row"><code role="cell">activeTab</code><span role="cell">Read the page you chose</span><span role="cell">On click</span></div>
+        <div class="permission-row" role="row"><code role="cell">scripting</code><span role="cell">Find title and canonical link</span><span role="cell">On click</span></div>
+        <div class="permission-row" role="row"><code role="cell">clipboardWrite</code><span role="cell">Put the result on your clipboard</span><span role="cell">On copy</span></div>
+        <div class="permission-row" role="row"><code role="cell">storage</code><span role="cell">Remember your chosen rules</span><span role="cell">On change</span></div>
+      </div>
+    </section>
+
+    <section class="source-section section" aria-labelledby="source-title">
+      <div class="source-terminal" aria-hidden="true">
+        <div class="terminal-bar"><span></span><span></span><span></span><b>manifest.json</b></div>
+        <pre><code>{
+  <i>"manifest_version"</i>: 3,
+  <i>"permissions"</i>: [
+    <em>"activeTab"</em>,
+    <em>"scripting"</em>,
+    <em>"clipboardWrite"</em>,
+    <em>"storage"</em>
+  ]
+}</code></pre>
+        <div class="terminal-foot"><span>MIT licensed</span><span>zero runtime dependencies</span></div>
+      </div>
+      <div class="source-copy">
+        <h2 id="source-title">Inspect every line.<br>Keep every promise honest.</h2>
+        <p>The complete extension is public under the MIT License. Its narrow scope, tests, permissions, and release package are all open to review.</p>
+        <a class="button button-dark" href="https://github.com/walnut-a/markdown-link-copier">Explore on GitHub</a>
+      </div>
+    </section>
+
+    <section class="final-cta section" aria-labelledby="cta-title">
+      <img src="chrome-extension/icons/icon128.png" alt="" width="72" height="72">
+      <h2 id="cta-title">The next clean link<br>is one click away.</h2>
+      <a class="button button-primary" href="https://chromewebstore.google.com/detail/markdown-link-copier/okdollbnpaenkphpigcahcaiddfainpn">Add Markdown Link Copier</a>
+      <p>Chrome · Free · Open source</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="brand footer-brand"><img src="chrome-extension/icons/icon32.png" alt="" width="28" height="28"><span>Markdown Link Copier</span></div>
+    <p>Built for clean, accurate links.</p>
+    <div><a href="https://github.com/walnut-a/markdown-link-copier">GitHub</a><a href="https://github.com/walnut-a/markdown-link-copier/issues">Support</a><span>MIT License</span></div>
+  </footer>
+</body>
+</html>

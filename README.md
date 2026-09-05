@@ -15,6 +15,14 @@
 
 [Markdown Link Copier - Chrome Web Store](https://chromewebstore.google.com/detail/markdown-link-copier/okdollbnpaenkphpigcahcaiddfainpn)
 
+## 产品官网
+
+仓库根目录是一套不依赖框架或第三方运行时的静态官网，通过 GitHub Pages 发布：
+
+`https://walnut-a.github.io/markdown-link-copier/`
+
+官网代码仍与扩展一起开源，仓库采用 [MIT License](LICENSE)。
+
 ## 安装
 
 优先建议直接从 Chrome Web Store 安装；如果你想本地加载或调试，也可以直接加载扩展目录。
@@ -45,6 +53,8 @@
 ## 开发说明
 
 - 扩展主体在 `chrome-extension/`
+- 官网入口为 `index.html`，样式和交互分别位于 `css/custom-theme.css` 与 `js/main.js`
+- 商店配图及其可复现 HTML/CSS 源文件位于 `docs/store-assets/`
 - 测试命令：`node --test chrome-extension/*.test.mjs`
 - 精简发布包：`./scripts/package-extension.sh`
 

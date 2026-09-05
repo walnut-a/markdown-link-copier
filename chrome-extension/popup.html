@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>Markdown Link Copier</title>
+    <title data-i18n="extensionName">Markdown Link Copier</title>
     <link rel="stylesheet" href="popup.css">
   </head>
   <body data-page="popup">
@@ -10,22 +10,23 @@
       <header class="popup-header">
         <img class="app-icon" src="icons/icon32.png" alt="" width="30" height="30">
         <div class="popup-heading">
-          <h1>复制链接文本</h1>
-          <span class="product-name">Markdown Link Copier</span>
+          <h1 data-i18n="popupHeading">Copy Link Text</h1>
+          <span class="product-name" data-i18n="extensionName">Markdown Link Copier</span>
         </div>
       </header>
       <div class="status-row">
-        <p id="status" data-state="loading" role="status" aria-live="polite">正在准备...</p>
-        <button id="retry-copy" class="retry-button" type="button" hidden>再次复制</button>
+        <p id="status" data-state="loading" role="status" aria-live="polite" data-i18n="preparing">Preparing...</p>
+        <button id="retry-copy" class="retry-button" type="button" data-i18n="retryCopy" hidden>Copy again</button>
       </div>
-      <section id="result-panel" class="result-panel" aria-label="复制结果" hidden>
+      <section id="result-panel" class="result-panel" aria-label="Copy result" data-i18n-aria-label="copyResultAria" hidden>
         <div class="result-details">
           <span id="title-source" class="result-source" hidden></span>
           <span id="cleanup-summary" class="cleanup-summary" hidden></span>
         </div>
         <textarea
           id="result-preview"
-          aria-label="已复制内容"
+          aria-label="Copied content"
+          data-i18n-aria-label="copiedContentAria"
           rows="3"
           readonly
           spellcheck="false"
@@ -38,14 +39,14 @@
             <circle cx="10" cy="10" r="2.6"></circle>
             <path d="M10 2.6v2M10 15.4v2M17.4 10h-2M4.6 10h-2M15.2 4.8l-1.4 1.4M6.2 13.8l-1.4 1.4M15.2 15.2l-1.4-1.4M6.2 6.2 4.8 4.8"></path>
           </svg>
-          <span>设置</span>
+          <span data-i18n="settings">Settings</span>
         </button>
         <button id="open-shortcuts" class="secondary-button" type="button">
           <svg viewBox="0 0 20 20" aria-hidden="true">
             <rect x="2.5" y="4.5" width="15" height="11" rx="2"></rect>
             <path d="M5.5 8h.01M8.5 8h.01M11.5 8h.01M14.5 8h.01M6.5 11h.01M9.5 11h.01M12.5 11h.01M7 13.5h6"></path>
           </svg>
-          <span>快捷键</span>
+          <span data-i18n="shortcuts">Shortcuts</span>
         </button>
       </div>
     </main>

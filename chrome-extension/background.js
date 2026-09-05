@@ -1,4 +1,5 @@
 import { showPageFeedback } from './page-feedback.js';
+import { createI18n } from './i18n.js';
 
 export const COPY_PURE_URL_COMMAND = 'copy-pure-url';
 
@@ -50,9 +51,11 @@ export async function copyActiveTabPureUrl() {
   });
 
   const copied = results.some(({ result }) => result === true);
+  const { uiLanguage } = await chrome.storage.sync.get({ uiLanguage: 'auto' });
+  const i18n = await createI18n(uiLanguage);
   await showPageFeedback(
     tab.id,
-    copied ? '纯链接已复制' : '纯链接复制失败',
+    copied ? i18n.t('pureUrlCopied') : i18n.t('pureUrlCopyFailed'),
     copied ? 'success' : 'error'
   );
 
@@ -67,7 +70,7 @@ export async function handleCommand(command) {
   try {
     return await copyActiveTabPureUrl();
   } catch (error) {
-    console.warn('无法复制纯链接', error);
+    console.warn('Unable to copy the clean URL.', error);
     return false;
   }
 }

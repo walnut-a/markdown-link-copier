@@ -22,11 +22,12 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-mkdir -p "$package_root/icons" "$output_dir"
+mkdir -p "$package_root/icons" "$package_root/_locales" "$output_dir"
 cp \
   "$extension_root/manifest.json" \
   "$extension_root/background.js" \
   "$extension_root/page-feedback.js" \
+  "$extension_root/i18n.js" \
   "$extension_root/popup.js" \
   "$extension_root/popup.css" \
   "$extension_root/popup.html" \
@@ -38,6 +39,7 @@ cp \
   "$extension_root/icons/icon48.png" \
   "$extension_root/icons/icon128.png" \
   "$package_root/icons/"
+cp -R "$extension_root/_locales/en" "$extension_root/_locales/zh_CN" "$package_root/_locales/"
 
 rm -f -- "$archive_path"
 (

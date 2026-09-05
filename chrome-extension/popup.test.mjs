@@ -5,6 +5,11 @@ import path from 'node:path';
 
 const popupPath = path.resolve('chrome-extension/popup.js');
 const popupSource = await fs.readFile(popupPath, 'utf8');
+const i18nSource = await fs.readFile(path.resolve('chrome-extension/i18n.js'), 'utf8');
+const i18nModuleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(i18nSource)}`;
+const zhCatalog = JSON.parse(
+  await fs.readFile(path.resolve('chrome-extension/_locales/zh_CN/messages.json'), 'utf8')
+);
 const popupHtml = await fs.readFile(path.resolve('chrome-extension/popup.html'), 'utf8');
 const optionsHtml = await fs.readFile(path.resolve('chrome-extension/options.html'), 'utf8');
 const manifest = JSON.parse(await fs.readFile(path.resolve('chrome-extension/manifest.json'), 'utf8'));
@@ -82,6 +87,24 @@ Object.defineProperty(globalThis, 'document', {
 
 Object.defineProperty(globalThis, 'chrome', {
   value: {
+    i18n: {
+      getUILanguage: () => 'zh-CN',
+      getMessage: (key, substitutions = []) => {
+        const entry = zhCatalog[key];
+        if (!entry) return '';
+
+        const values = Array.isArray(substitutions) ? substitutions : [substitutions];
+        let message = entry.message;
+        for (const [name, placeholder] of Object.entries(entry.placeholders || {})) {
+          const index = Number.parseInt(placeholder.content.slice(1), 10) - 1;
+          message = message.replaceAll(`$${name.toUpperCase()}$`, values[index] ?? '');
+        }
+        return message;
+      }
+    },
+    runtime: {
+      getURL: (resourcePath) => resourcePath
+    },
     storage: {
       sync: {
         get: async (defaults) => defaults,
@@ -177,7 +200,7 @@ Object.defineProperty(globalThis, 'DOMParser', {
 
 const popupModule = await import(
   `data:text/javascript;charset=utf-8,${encodeURIComponent(
-    `${popupSource}\nexport { cleanTitle, cleanUrl, DEFAULT_SETTINGS, copyMarkdownLink, retryLastCopy, migrateSettings, getOutputPresetId, parseImportedSettings, serializeSettings };`
+    `${popupSource.replace("'./i18n.js'", JSON.stringify(i18nModuleUrl))}\nexport { cleanTitle, cleanUrl, DEFAULT_SETTINGS, copyMarkdownLink, retryLastCopy, migrateSettings, getOutputPresetId, parseImportedSettings, serializeSettings };`
   )}`
 );
 
@@ -643,6 +666,7 @@ test('migrates untouched legacy cleaning defaults without changing custom rules'
   assert.deepEqual(migratedDefaults.trackingParams, DEFAULT_SETTINGS.trackingParams);
   assert.deepEqual(migratedDefaults.trackingPrefixes, DEFAULT_SETTINGS.trackingPrefixes);
   assert.deepEqual(customized.trackingParams, ['utm_source', 'ref']);
+  assert.equal(migratedDefaults.uiLanguage, 'auto');
 });
 
 test('uses configurable URL cleaning rules', () => {
@@ -728,8 +752,9 @@ test('renders copied text with a configurable output template', async () => {
 
 test('declares both copy shortcuts without the broad tabs permission', () => {
   assert.equal(manifest.permissions.includes('tabs'), false);
-  assert.equal(manifest.commands._execute_action.description, '复制当前页面链接文本');
-  assert.equal(manifest.commands['copy-pure-url'].description, '复制纯链接（移除所有参数）');
+  assert.deepEqual(manifest.commands._execute_action, {});
+  assert.equal(manifest.commands['copy-pure-url'].description, '__MSG_commandCopyPureUrl__');
+  assert.equal(manifest.default_locale, 'en');
   assert.deepEqual(manifest.background, {
     service_worker: 'background.js',
     type: 'module'
@@ -762,11 +787,13 @@ test('serializes and validates imported settings', () => {
 
   assert.equal(imported.stripTitleSuffix, false);
   assert.equal(imported.outputTemplate, '{{url}}');
+  assert.equal(imported.uiLanguage, 'auto');
   assert.throws(() => parseImportedSettings('[]'), /设置文件必须是 JSON 对象/);
   assert.throws(() => parseImportedSettings('{broken'), /设置文件不是有效的 JSON/);
 });
 
 test('includes output presets and settings backup controls in the options page', () => {
+  assert.match(optionsHtml, /id="ui-language"/);
   assert.match(optionsHtml, /id="output-preset"/);
   assert.match(optionsHtml, /id="export-settings"/);
   assert.match(optionsHtml, /id="import-settings"/);
