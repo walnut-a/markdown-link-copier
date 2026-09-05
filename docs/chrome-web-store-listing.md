@@ -78,7 +78,7 @@ The extension reads the current page only when you click it or trigger a shortcu
 - 2026-09-05 已用新版 1280×800 全球通用截图替换旧图并提请审核；后台状态为“待审核”，通过后自动发布。
 - 新版截图源文件位于 `docs/store-assets/store-screenshot-01.html`，上传文件为 `docs/store-assets/markdown-link-copier-1280x800.png`。
 - MIT License 已补充到仓库根目录。
-- 独立产品官网已纳入仓库并通过 GitHub Pages 发布：<https://walnut-a.github.io/markdown-link-copier/>。在通过 Search Console 验证前，商店“官方网址”仍保持“无”。
+- 独立产品官网已纳入仓库并通过 GitHub Pages 发布：<https://walnut-a.github.io/markdown-link-copier/>；2026-09-05 已通过 Search Console 的 HTML 标记完成所有权验证。商店当前仍在审核，商品详情字段被锁定，因此“官方网址”暂时保持“无”。
 - 已完成 3 张补充截图、440×280 小型宣传图块和 1400×560 顶部宣传图块；这些新增素材尚未上传商店，避免与当前待审核版本混在同一次不可回滚的外部操作中。
 
 ## 截图建议
@@ -101,7 +101,7 @@ The extension reads the current page only when you click it or trigger a shortcu
 1. 当前商店只有 10 位用户且尚无评分。先通过真实用户传播积累安装、留存与自然评价，不能做激励评价或虚假安装。
 2. 已完成：仓库根目录已经补充 MIT License。
 3. 素材已在本地完成：当前待审核截图之外，已有 3 张补充截图、440×280 小型宣传图块和 1400×560 顶部宣传图块；下一步是在当前审核结束后上传并重新提交。
-4. 官网已部署：下一步通过 Search Console 验证，并把商店“官方网址”切换为产品页；GitHub 继续作为源码与支持入口。
+4. 官网已部署并通过 Search Console 验证：待当前审核结束后，把商店“官方网址”切换为产品页；GitHub 继续作为源码与支持入口。
 5. 继续保持 Manifest V3、最小权限、不收集数据、清晰的单一用途、自动化测试和稳定更新记录。
 
 ## 发布检查
