@@ -27,6 +27,7 @@ a { color: inherit; text-decoration: none; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button, input { font: inherit; }
 img { display: block; max-width: 100%; }
+::selection { background: var(--blue-pale); color: var(--ink); }
 :focus-visible { outline: 3px solid rgba(18, 111, 232, .35); outline-offset: 4px; }
 .skip-link { position: fixed; z-index: 100; top: 12px; left: 12px; padding: 10px 14px; background: var(--ink); color: white; transform: translateY(-150%); }
 .skip-link:focus { transform: translateY(0); }
@@ -47,7 +48,16 @@ img { display: block; max-width: 100%; }
 .site-nav { display: flex; gap: 30px; color: #40516e; font-size: 14px; font-weight: 650; }
 .site-nav a, .text-link, .site-footer a { transition: color 160ms ease; }
 .site-nav a:hover, .text-link:hover, .site-footer a:hover { color: var(--blue); }
+.header-actions { justify-self: end; display: flex; align-items: center; gap: 22px; }
+.language-switch { color: var(--muted); font-size: 13px; font-weight: 700; border-bottom: 1px solid var(--line); padding: 5px 0 3px; }
+.language-switch:hover { color: var(--blue); border-color: var(--blue); }
 .header-install { justify-self: end; border-bottom: 2px solid var(--ink); padding: 5px 0 3px; font-size: 14px; font-weight: 750; }
+
+[lang="zh-CN"] h1,
+[lang="zh-CN"] .section-intro h2,
+[lang="zh-CN"] .ledger-heading h2,
+[lang="zh-CN"] .source-copy h2,
+[lang="zh-CN"] .final-cta h2 { letter-spacing: -.035em; }
 
 .hero {
   position: relative;
@@ -177,9 +187,10 @@ h1 { max-width: 620px; margin-bottom: 26px; font-size: clamp(54px, 5.5vw, 82px);
 }
 
 @media (max-width: 680px) {
-  .site-header { width: min(calc(100% - 32px), var(--max-width)); height: 72px; grid-template-columns: minmax(0, 1fr); }
+  .site-header { width: min(calc(100% - 32px), var(--max-width)); height: 72px; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; }
   .brand { font-size: 14px; }
   .brand img { width: 32px; height: 32px; }
+  .header-actions { gap: 0; }
   .header-install { display: none; }
   .hero { padding-left: 20px; padding-right: 20px; padding-top: 52px; }
   h1 { max-width: 100%; font-size: 48px; letter-spacing: -.058em; }

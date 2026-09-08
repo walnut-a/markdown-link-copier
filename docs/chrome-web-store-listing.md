@@ -79,6 +79,8 @@ The extension reads the current page only when you click it or trigger a shortcu
 - 新版截图源文件位于 `docs/store-assets/store-screenshot-01.html`，上传文件为 `docs/store-assets/markdown-link-copier-1280x800.png`。
 - MIT License 已补充到仓库根目录。
 - 独立产品官网已纳入仓库并通过 GitHub Pages 发布：<https://walnut-a.github.io/markdown-link-copier/>；2026-09-05 已通过 Search Console 的 HTML 标记完成所有权验证。
+- 2026-09-08 已补充独立简体中文官网、双语 `hreflang`、canonical、Open Graph、Twitter Card、SoftwareApplication 结构化数据、`robots.txt` 与 `sitemap.xml`；待代码部署后公开生效。
+- 轻推广文案与 4 秒演示动图位于 `docs/promotion/`，动图可通过 `scripts/render-promotion-gif.sh` 复现。
 - 2026-09-07 已把产品官网设为商店“官方网址”和首页网址，并上传 3 张补充截图、440×280 小型宣传图块和 1400×560 顶部宣传图块；新版商品详情已提请审核，通过后自动发布。
 
 ## 截图建议

@@ -8,10 +8,10 @@ if (copyButton) {
     const previousLabel = copyButton.textContent;
     try {
       await navigator.clipboard.writeText(output.textContent.trim());
-      copyButton.textContent = 'Copied';
+      copyButton.textContent = copyButton.dataset.successLabel || 'Copied';
       copyButton.dataset.state = 'success';
     } catch {
-      copyButton.textContent = 'Select text to copy';
+      copyButton.textContent = copyButton.dataset.fallbackLabel || 'Select text to copy';
       window.getSelection()?.selectAllChildren(output);
     }
 

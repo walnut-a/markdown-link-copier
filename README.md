@@ -23,6 +23,9 @@
 
 官网代码仍与扩展一起开源，仓库采用 [MIT License](LICENSE)。
 
+- [English](https://walnut-a.github.io/markdown-link-copier/)
+- [简体中文](https://walnut-a.github.io/markdown-link-copier/zh-CN/)
+
 ## 安装
 
 优先建议直接从 Chrome Web Store 安装；如果你想本地加载或调试，也可以直接加载扩展目录。
@@ -55,6 +58,7 @@
 - 扩展主体在 `chrome-extension/`
 - 官网入口为 `index.html`，样式和交互分别位于 `css/custom-theme.css` 与 `js/main.js`
 - 商店配图及其可复现 HTML/CSS 源文件位于 `docs/store-assets/`
+- 轻推广文案和可复现演示动图位于 `docs/promotion/`
 - 测试命令：`node --test chrome-extension/*.test.mjs`
 - 精简发布包：`./scripts/package-extension.sh`
 
